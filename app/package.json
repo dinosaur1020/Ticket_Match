@@ -10,7 +10,14 @@
     "init-db": "node scripts/init-db.js",
     "init-db:seed": "node scripts/init-db.js --seed",
     "init-mongo-indexes": "node scripts/init-mongodb-indexes.js",
-    "check-integrity": "node scripts/check-data-integrity.js"
+    "check-integrity": "node scripts/check-data-integrity.js",
+    "generate-data": "python scripts/generate-fake-data.py --yes",
+    "generate-data:test": "python scripts/generate-fake-data.py --scale 0.1 --output test-data.sql --yes",
+    "generate-data:large": "python scripts/generate-fake-data.py --scale 1.5 --yes",
+    "generate-data:custom": "python scripts/generate-fake-data.py --users 5000 --tickets 15000 --listings 18000 --yes",
+    "generate-data:exact": "python scripts/generate-fake-data.py --users 3000 --events 300 --tickets 10000 --listings 12000 --trades 3000 --yes",
+    "setup-demo": "npm run generate-data:test && npm run init-db && npm run init-db:seed test-data.sql",
+    "setup-full": "npm run generate-data:exact && npm run init-db && npm run init-db:seed generated-data.sql"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -50,6 +50,16 @@ export async function GET(request: NextRequest) {
 
     const result = await query(sql, params);
 
+    // Get total count for pagination
+    let countSql = `SELECT COUNT(*) as total FROM event e`;
+    const countParams: any[] = [];
+    if (search) {
+      countSql += ` LEFT JOIN event_performer ep ON e.event_id = ep.event_id WHERE e.event_name ILIKE $1 OR e.venue ILIKE $1 OR ep.performer ILIKE $1`;
+      countParams.push(`%${search}%`);
+    }
+    const countResult = await query(countSql, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
     return NextResponse.json({
       events: result.rows.map(row => ({
         ...row,
@@ -59,6 +69,7 @@ export async function GET(request: NextRequest) {
         limit,
         offset,
         count: result.rows.length,
+        total,
       },
     });
 

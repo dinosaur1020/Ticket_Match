@@ -41,6 +41,28 @@ export async function GET(request: NextRequest) {
 
     const result = await query(sql, params);
 
+    // Get total count for pagination
+    let countSql = `
+      SELECT COUNT(*) as total
+      FROM listing l
+      WHERE l.status = $1
+    `;
+    const countParams: any[] = [status];
+    let countParamIndex = 2;
+    
+    if (event_id) {
+      countSql += ` AND l.event_id = $${countParamIndex++}`;
+      countParams.push(parseInt(event_id));
+    }
+    
+    if (type) {
+      countSql += ` AND l.type = $${countParamIndex}`;
+      countParams.push(type);
+    }
+    
+    const countResult = await query(countSql, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
     // Fetch ticket details for each listing with offered_ticket_ids
     const listingsWithTickets = await Promise.all(
       result.rows.map(async (listing) => {
@@ -79,6 +101,7 @@ export async function GET(request: NextRequest) {
         limit,
         offset,
         count: listingsWithTickets.length,
+        total,
       },
     });
 

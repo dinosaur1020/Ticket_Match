@@ -20,7 +20,7 @@ DROP TABLE IF EXISTS "USER" CASCADE;
 -- 1. USER
 -- =========================================================
 CREATE TABLE "USER" (
-    user_id        SERIAL PRIMARY KEY,
+    user_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username       VARCHAR(50) UNIQUE NOT NULL,
     password_hash  VARCHAR(255) NOT NULL,
     email          VARCHAR(100) UNIQUE NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE "USER" (
 -- 2. USER_ROLE
 -- =========================================================
 CREATE TABLE USER_ROLE (
-    user_id INTEGER NOT NULL
+    user_id UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
@@ -91,7 +91,7 @@ CREATE TABLE TICKET (
         REFERENCES EVENTTIME(eventtime_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
-    owner_id       INTEGER NOT NULL
+    owner_id       UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
@@ -111,7 +111,7 @@ CREATE TABLE TICKET (
 -- =========================================================
 CREATE TABLE LISTING (
     listing_id  SERIAL PRIMARY KEY,
-    user_id     INTEGER NOT NULL
+    user_id     UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
@@ -162,9 +162,9 @@ CREATE TABLE TRADE (
 CREATE TABLE TRADE_PARTICIPANT (
     trade_id      INTEGER NOT NULL
         REFERENCES TRADE(trade_id)
-        ON DELETE CASCADE
+        ON DELETE RESTRICT
         ON UPDATE CASCADE,
-    user_id       INTEGER NOT NULL
+    user_id       UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
@@ -184,7 +184,7 @@ CREATE TABLE TRADE_PARTICIPANT (
 CREATE TABLE TRADE_TICKET (
     trade_id      INTEGER NOT NULL
         REFERENCES TRADE(trade_id)
-        ON DELETE CASCADE
+        ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
     ticket_id     INTEGER NOT NULL
@@ -192,12 +192,12 @@ CREATE TABLE TRADE_TICKET (
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
-    from_user_id  INTEGER NOT NULL
+    from_user_id  UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
-    to_user_id    INTEGER NOT NULL
+    to_user_id    UUID NOT NULL
         REFERENCES "USER"(user_id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE,
@@ -217,9 +217,9 @@ CREATE TABLE TRADE_TICKET (
 -- =========================================================
 CREATE TABLE USER_BALANCE_LOG (
     log_id      SERIAL PRIMARY KEY,
-    user_id     INTEGER NOT NULL
+    user_id     UUID NOT NULL
         REFERENCES "USER"(user_id)
-        ON DELETE CASCADE
+        ON DELETE RESTRICT
         ON UPDATE CASCADE,
 
     trade_id    INTEGER

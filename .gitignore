@@ -62,6 +62,12 @@ Thumbs.db
 *.db
 *.sql.bak
 
+# Generated fake data files (can be regenerated with npm run generate-data)
+generated-data.sql
+huge-data.sql
+test-data.sql
+test-*.sql
+
 # Temporary files
 *.tmp
 *.temp

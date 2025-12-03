@@ -46,17 +46,25 @@ async function initDatabase() {
     await client.query(schema);
     console.log('✅ Schema applied successfully\n');
     
-    // Ask if user wants to load seed data
+    // Load seed data
     const args = process.argv.slice(2);
     if (args.includes('--seed')) {
-      const seedPath = path.join(__dirname, 'seed-data.sql');
+      // Check if a custom seed file is provided
+      const seedIndex = args.indexOf('--seed');
+      let seedPath = path.join(__dirname, 'seed-data.sql');
+
+      if (seedIndex + 1 < args.length && !args[seedIndex + 1].startsWith('--')) {
+        // Custom seed file provided
+        seedPath = path.resolve(args[seedIndex + 1]);
+      }
+
       if (fs.existsSync(seedPath)) {
-        console.log('🌱 Loading seed data...');
+        console.log(`🌱 Loading seed data from ${path.basename(seedPath)}...`);
         const seedData = fs.readFileSync(seedPath, 'utf-8');
         await client.query(seedData);
         console.log('✅ Seed data loaded successfully\n');
       } else {
-        console.warn('⚠️  Seed data file not found, skipping...\n');
+        console.warn(`⚠️  Seed data file not found: ${seedPath}, skipping...\n`);
       }
     }
     
