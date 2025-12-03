@@ -15,9 +15,50 @@
 - ✅ **數據分析**：5+ 種分析查詢（SQL + MongoDB）
 - ✅ **多人併行測試**：支援同時多用戶操作
 
+## 📋 Prerequisites Setup
+
+### PostgreSQL Installation
+**macOS (with Homebrew):**
+```bash
+brew install postgresql
+brew services start postgresql
+createdb ticket_match
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo -u postgres createdb ticket_match
+```
+
+**Docker (Alternative):**
+```bash
+docker run --name postgres-ticket -e POSTGRES_DB=ticket_match -e POSTGRES_PASSWORD=your_password -p 5432:5432 -d postgres:14
+```
+
+### MongoDB Installation
+**macOS (with Homebrew):**
+```bash
+brew tap mongodb/brew
+brew install mongodb-community
+brew services start mongodb-community
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install mongodb
+sudo systemctl start mongodb
+```
+
+**Docker (Alternative):**
+```bash
+docker run --name mongodb-ticket -p 27017:27017 -d mongo:6
+```
+
 ## 📋 系統需求
 
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL 14+
 - MongoDB 6+
 - npm 或 yarn
@@ -29,13 +70,13 @@
 ```bash
 # 克隆專案
 git clone <repository-url>
-cd app
+cd Ticket_Match-1/app
 
 # 安裝依賴
 npm install
 
 # 複製環境變數範例並修改
-cp .env.local.example .env.local
+cp ".env copy.example" .env.local
 ```
 
 編輯 `.env.local` 並設定你的資料庫連線資訊：
@@ -58,7 +99,8 @@ SESSION_SECRET=your-random-secret-at-least-32-characters-long
 ### 2. 資料庫初始化
 
 ```bash
-# 建立 PostgreSQL 資料庫
+# 建立 PostgreSQL 資料庫（如果尚未建立）
+# 注意：如果使用 Docker，資料庫已在容器中建立
 createdb ticket_match
 
 # 執行 schema 和 seed data
@@ -77,10 +119,10 @@ node scripts/init-db.js --seed
   ...
 ```
 
-**（可選）建立 MongoDB 索引以提升查詢效能：**
+**建立 MongoDB 索引以解鎖完整分析功能：**
 
 ```bash
-# 建立 MongoDB 索引
+# 建立 MongoDB 索引（解鎖瀏覽分析、搜尋關鍵字等功能）
 node scripts/init-mongodb-indexes.js
 ```
 
@@ -346,6 +388,11 @@ app/
 ### 3. 種子資料載入失敗
 - 先執行 schema：`node scripts/init-db.js`
 - 再載入 seed data：`node scripts/init-db.js --seed`
+
+### 4. Port 3000 已被占用
+- Next.js 預設使用 port 3000
+- 變更 port：`npm run dev -- -p 3001`
+- 或設定環境變數：`PORT=3001 npm run dev`
 
 ## 👥 團隊
 
