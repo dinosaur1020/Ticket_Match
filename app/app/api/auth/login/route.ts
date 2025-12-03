@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     // Get user from database
     const userResult = await query(
       `SELECT u.user_id, u.username, u.email, u.password_hash, u.status, u.balance,
-              array_agg(ur.role) as roles
+              array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL) as roles
        FROM "USER" u
        LEFT JOIN user_role ur ON u.user_id = ur.user_id
        WHERE u.username = $1

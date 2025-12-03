@@ -58,5 +58,147 @@ export async function logUserActivity(data: {
   }
 }
 
+// Get browsing trends data with time grouping
+export async function getBrowsingTrends(
+  days?: number
+): Promise<any[]> {
+  try {
+    const collection = await getUserActivityCollection();
+    
+    // Build match filter
+    const matchFilter: any = {
+      action: { $in: ['view_event', 'view_listing'] }
+    };
+    
+    if (days) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      matchFilter.timestamp = { $gte: startDate };
+    }
+    
+    const results = await collection
+      .aggregate([
+        { $match: matchFilter },
+        {
+          $group: {
+            _id: {
+              date: {
+                $dateToString: { format: '%Y-%m-%d', date: '$timestamp' }
+              },
+              action: '$action'
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.date': 1 } },
+        {
+          $group: {
+            _id: '$_id.date',
+            views: {
+              $push: {
+                action: '$_id.action',
+                count: '$count'
+              }
+            }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ])
+      .toArray();
+    
+    return results;
+  } catch (error) {
+    console.error('Failed to get browsing trends:', error);
+    return [];
+  }
+}
+
+// Get popular content (most viewed events and listings)
+export async function getPopularContent(
+  contentType: 'event' | 'listing',
+  limit: number = 10
+): Promise<any[]> {
+  try {
+    const collection = await getUserActivityCollection();
+    
+    const action = contentType === 'event' ? 'view_event' : 'view_listing';
+    const idField = contentType === 'event' ? 'event_id' : 'listing_id';
+    
+    const results = await collection
+      .aggregate([
+        { 
+          $match: { 
+            action,
+            [idField]: { $exists: true, $ne: null }
+          } 
+        },
+        {
+          $group: {
+            _id: `$${idField}`,
+            view_count: { $sum: 1 },
+            unique_users: { $addToSet: '$user_id' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            content_id: '$_id',
+            view_count: 1,
+            unique_users: { $size: '$unique_users' }
+          }
+        },
+        { $sort: { view_count: -1 } },
+        { $limit: limit }
+      ])
+      .toArray();
+    
+    return results;
+  } catch (error) {
+    console.error('Failed to get popular content:', error);
+    return [];
+  }
+}
+
+// Get user browsing history
+export async function getUserBrowsingHistory(
+  userId: number,
+  limit: number = 50
+): Promise<any[]> {
+  try {
+    const collection = await getUserActivityCollection();
+    
+    const results = await collection
+      .find({
+        user_id: userId,
+        action: { $in: ['view_event', 'view_listing'] }
+      })
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+    
+    return results;
+  } catch (error) {
+    console.error('Failed to get user browsing history:', error);
+    return [];
+  }
+}
+
+// Create indexes for better query performance
+export async function createIndexes(): Promise<void> {
+  try {
+    const collection = await getUserActivityCollection();
+    
+    await collection.createIndex({ user_id: 1, timestamp: -1 });
+    await collection.createIndex({ action: 1, timestamp: -1 });
+    await collection.createIndex({ event_id: 1 });
+    await collection.createIndex({ listing_id: 1 });
+    await collection.createIndex({ timestamp: -1 });
+    
+    console.log('MongoDB indexes created successfully');
+  } catch (error) {
+    console.error('Failed to create indexes:', error);
+  }
+}
+
 export default clientPromise;
 

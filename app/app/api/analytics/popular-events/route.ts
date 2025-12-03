@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({
-      title: 'Popular Events by Listing Count',
+      title: '熱門活動排行',
       data: result.rows.map(row => ({
         ...row,
         listing_count: parseInt(row.listing_count),

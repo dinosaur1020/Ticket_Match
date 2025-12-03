@@ -111,3 +111,44 @@ export interface TradeWithDetails extends Trade {
   tickets: TradeTicket[];
 }
 
+// MongoDB User Activity Types
+export interface UserActivity {
+  user_id?: number;
+  action: 'search' | 'click' | 'view_event' | 'view_listing';
+  keyword?: string;
+  listing_id?: number;
+  event_id?: number;
+  metadata?: Record<string, any>;
+  timestamp: Date;
+}
+
+export interface BrowsingHistory {
+  user_id: number;
+  action: 'view_event' | 'view_listing';
+  event_id?: number;
+  listing_id?: number;
+  timestamp: Date;
+  // Extended info from joins
+  event_name?: string;
+  venue?: string;
+  listing_type?: string;
+}
+
+export interface BrowsingTrendData {
+  date: string;
+  event_views: number;
+  listing_views: number;
+  total_views: number;
+}
+
+export interface PopularContentData {
+  content_id: number;
+  content_type: 'event' | 'listing';
+  view_count: number;
+  unique_users: number;
+  // Extended info
+  name?: string;
+  venue?: string;
+  listing_type?: string;
+}
+

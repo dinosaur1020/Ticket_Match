@@ -77,6 +77,13 @@ node scripts/init-db.js --seed
   ...
 ```
 
+**（可選）建立 MongoDB 索引以提升查詢效能：**
+
+```bash
+# 建立 MongoDB 索引
+node scripts/init-mongodb-indexes.js
+```
+
 ### 3. 啟動開發伺服器
 
 ```bash
@@ -120,10 +127,12 @@ npm run dev
 
 ### 數據分析功能
 1. **熱門活動排行**：依貼文數量統計
-2. **使用者收入排行**：交易收益統計
-3. **票券流動分析**：票券轉移路徑
-4. **活動轉換率**：貼文完成度分析
-5. **熱門搜尋關鍵字**：MongoDB 聚合查詢
+2. **票券流動分析**：票券轉移路徑
+3. **活動轉換率**：貼文完成度分析
+4. **熱門搜尋關鍵字**：MongoDB 聚合查詢
+5. **瀏覽趨勢分析**：每日活動與貼文瀏覽量統計（新功能）
+6. **熱門瀏覽內容**：最多人瀏覽的活動與貼文排行（新功能）
+7. **個人瀏覽記錄**：使用者瀏覽歷史追蹤（新功能）
 
 ## 🔄 併行操作測試
 
@@ -183,12 +192,31 @@ COMMIT;
 
 ### 索引策略
 
+**PostgreSQL 索引：**
 ```sql
 CREATE INDEX idx_ticket_owner ON TICKET(owner_id);
 CREATE INDEX idx_listing_event ON LISTING(event_id);
 CREATE INDEX idx_trade_listing ON TRADE(listing_id);
 -- ... 更多索引請參考 schema.sql
 ```
+
+**MongoDB 索引：**
+```javascript
+// user_activity_log collection
+{ user_id: 1, timestamp: -1 }    // 查詢使用者歷史
+{ action: 1, timestamp: -1 }      // 按類型查詢
+{ event_id: 1 }                   // 活動統計
+{ listing_id: 1 }                 // 貼文統計
+{ timestamp: -1 }                 // 時間排序
+```
+
+### MongoDB Collection
+
+**user_activity_log**：記錄使用者行為
+- 搜尋行為記錄
+- 活動瀏覽記錄
+- 貼文瀏覽記錄
+- 支援複雜的 Aggregation 查詢
 
 ## 🔍 API 端點
 
@@ -220,10 +248,12 @@ CREATE INDEX idx_trade_listing ON TRADE(listing_id);
 
 ### 分析
 - `GET /api/analytics/popular-events` - 熱門活動
-- `GET /api/analytics/user-income` - 使用者收入
 - `GET /api/analytics/ticket-flow` - 票券流動
 - `GET /api/analytics/conversion` - 轉換率
 - `GET /api/analytics/search-keywords` - 搜尋關鍵字
+- `GET /api/analytics/browsing-trends` - 瀏覽趨勢分析（新增）
+- `GET /api/analytics/popular-views` - 熱門瀏覽內容（新增）
+- `GET /api/analytics/user-browsing` - 個人瀏覽記錄（新增，需認證）
 
 ## 🎨 技術棧
 
@@ -247,7 +277,7 @@ CREATE INDEX idx_trade_listing ON TRADE(listing_id);
 | Client-Server 架構 | ✅ Next.js (Browser ↔ API Routes) | 整個專案 |
 | 5+ 使用者功能 | ✅ 7 項功能 | `/dashboard`, `/events` |
 | 5+ 業務功能 | ✅ 5 項功能 | `/admin` |
-| 5+ 分析查詢 | ✅ 5 項查詢 | `/api/analytics/*` |
+| 5+ 分析查詢 | ✅ 7 項查詢 | `/api/analytics/*` |
 | PostgreSQL 正規化 | ✅ 3NF/BCNF | `schema.sql` |
 | NoSQL 資料庫 | ✅ MongoDB | `lib/mongodb.ts` |
 | 交易管理 | ✅ ACID Transactions | `lib/db.ts`, trade APIs |

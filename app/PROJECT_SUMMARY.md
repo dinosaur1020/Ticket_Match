@@ -42,7 +42,6 @@
 
 #### 數據分析（5 項查詢）
 - [x] `GET /api/analytics/popular-events` - 熱門活動排行
-- [x] `GET /api/analytics/user-income` - 使用者收入排行
 - [x] `GET /api/analytics/ticket-flow` - 票券流動分析
 - [x] `GET /api/analytics/conversion` - 活動轉換率
 - [x] `GET /api/analytics/search-keywords` - MongoDB 搜尋關鍵字

@@ -16,7 +16,7 @@ export async function GET() {
     // Get fresh user data including balance
     const userResult = await query(
       `SELECT u.user_id, u.username, u.email, u.balance, u.status,
-              array_agg(ur.role) as roles
+              array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL) as roles
        FROM "USER" u
        LEFT JOIN user_role ur ON u.user_id = ur.user_id
        WHERE u.user_id = $1

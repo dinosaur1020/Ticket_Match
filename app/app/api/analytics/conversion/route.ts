@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({
-      title: 'Event Listing Conversion Rates',
+      title: '活動轉換率',
       data: result.rows.map(row => ({
         ...row,
         active_listings: parseInt(row.active_listings),

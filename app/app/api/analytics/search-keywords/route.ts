@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       .toArray();
 
     return NextResponse.json({
-      title: 'Popular Search Keywords (MongoDB)',
+      title: '熱門搜尋關鍵字',
       data: results,
     });
 

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     );
 
     return NextResponse.json({
-      title: 'Ticket Transfer Flow Analysis',
+      title: '票券流動分析',
       data: result.rows.map(row => ({
         ...row,
         transfer_count: parseInt(row.transfer_count),

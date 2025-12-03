@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "init-db": "node scripts/init-db.js",
-    "init-db:seed": "node scripts/init-db.js --seed"
+    "init-db:seed": "node scripts/init-db.js --seed",
+    "init-mongo-indexes": "node scripts/init-mongodb-indexes.js",
+    "check-integrity": "node scripts/check-data-integrity.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

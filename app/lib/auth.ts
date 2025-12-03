@@ -54,11 +54,22 @@ export async function requireAuth(): Promise<SessionData> {
 
 export async function requireRole(role: string): Promise<SessionData> {
   const session = await requireAuth();
-  
+
   if (!session.roles.includes(role)) {
     throw new Error('Forbidden: Insufficient permissions');
   }
-  
+
+  return session;
+}
+
+export async function requireRoles(allowedRoles: string[]): Promise<SessionData> {
+  const session = await requireAuth();
+
+  const hasRequiredRole = allowedRoles.some(role => session.roles.includes(role));
+  if (!hasRequiredRole) {
+    throw new Error(`Forbidden: Requires one of: ${allowedRoles.join(', ')}`);
+  }
+
   return session;
 }
 
