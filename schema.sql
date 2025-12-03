@@ -128,6 +128,9 @@ CREATE TABLE LISTING (
     type        VARCHAR(20) NOT NULL,
     -- 'Sell', 'Buy', 'Exchange'
 
+    offered_ticket_ids INTEGER[],
+    -- Array of ticket IDs that the listing owner offers (for Exchange and Sell listings)
+
     created_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -241,6 +244,7 @@ CREATE INDEX idx_ticket_owner      ON TICKET(owner_id);
 CREATE INDEX idx_ticket_eventtime  ON TICKET(eventtime_id);
 CREATE INDEX idx_listing_user      ON LISTING(user_id);
 CREATE INDEX idx_listing_event     ON LISTING(event_id);
+CREATE INDEX idx_listing_offered_tickets ON LISTING USING GIN (offered_ticket_ids);
 CREATE INDEX idx_trade_listing     ON TRADE(listing_id);
 CREATE INDEX idx_tp_user           ON TRADE_PARTICIPANT(user_id);
 CREATE INDEX idx_tt_ticket         ON TRADE_TICKET(ticket_id);

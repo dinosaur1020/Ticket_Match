@@ -18,6 +18,8 @@ interface Listing {
   content?: string;
   status: string;
   type: 'Sell' | 'Buy' | 'Exchange';
+  offered_ticket_ids?: number[];
+  offered_tickets?: any[];
   created_at: string;
 }
 
@@ -78,32 +80,56 @@ export default function ListingDetailPage() {
       return;
     }
 
-    if (!agreedPrice || parseFloat(agreedPrice) <= 0) {
-      alert('請輸入有效的交易金額');
+    if (agreedPrice === '') {
+      alert('請輸入交易金額（換票可輸入0）');
       return;
     }
 
-    // For Buy listings, we need to provide tickets
-    // For Sell listings, seller already has tickets (we need to get them from the listing)
+    const priceValue = parseFloat(agreedPrice);
+    if (priceValue < 0) {
+      alert('交易金額不能為負數');
+      return;
+    }
+
+    // Validation based on listing type
     if (listing?.type === 'Buy' && selectedTickets.length === 0) {
       alert('請選擇至少一張票券');
+      return;
+    }
+
+    if (listing?.type === 'Exchange' && selectedTickets.length === 0) {
+      alert('請選擇您要提供的票券');
       return;
     }
 
     setTradeLoading(true);
 
     try {
-      // For Sell listings, pass empty array (API will auto-find seller's tickets)
-      // For Buy listings, pass selected tickets
-      const ticketIds = listing?.type === 'Sell' ? [] : selectedTickets;
+      let ticketIds: number[] = [];
+      let listingOwnerTicketIds: number[] = [];
+
+      if (listing?.type === 'Sell') {
+        // For Sell listings, use offered_ticket_ids from listing
+        ticketIds = [];
+        listingOwnerTicketIds = listing.offered_ticket_ids || [];
+      } else if (listing?.type === 'Buy') {
+        // For Buy listings, initiator provides tickets
+        ticketIds = selectedTickets;
+        listingOwnerTicketIds = [];
+      } else if (listing?.type === 'Exchange') {
+        // For Exchange, both parties provide tickets
+        ticketIds = selectedTickets;
+        listingOwnerTicketIds = listing.offered_ticket_ids || [];
+      }
 
       const response = await fetch('/api/trades', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           listing_id: listing?.listing_id,
-          agreed_price: parseFloat(agreedPrice),
+          agreed_price: priceValue,
           ticket_ids: ticketIds,
+          listing_owner_ticket_ids: listingOwnerTicketIds,
         }),
       });
 
@@ -267,19 +293,27 @@ export default function ListingDetailPage() {
                 </p>
               </div>
 
-              {/* Ticket Selection (only for Buy listings - when buyer provides tickets) */}
-              {listing.type === 'Buy' && (
+              {/* Ticket Selection (for Buy and Exchange listings) */}
+              {(listing.type === 'Buy' || listing.type === 'Exchange') && (
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    選擇要出售的票券 *
+                    選擇您要提供的票券 *
                   </label>
                   <p className="text-sm text-gray-600 mb-3">
-                    此買家想要收購票券，請選擇您要出售的票券
+                    {listing.type === 'Buy' 
+                      ? '此買家想要收購票券，請選擇您要出售的票券'
+                      : '請選擇您想用來交換的票券'}
                   </p>
                   {myTickets.length === 0 ? (
-                    <p className="text-gray-600 text-center py-4">
-                      您目前沒有可用的票券
-                    </p>
+                    <div className="text-center py-4">
+                      <p className="text-gray-600 mb-3">您目前沒有可用的票券</p>
+                      <button
+                        onClick={() => router.push('/tickets/add')}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                      >
+                        立即新增票券
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {myTickets.map((ticket) => (
@@ -312,7 +346,48 @@ export default function ListingDetailPage() {
                 </div>
               )}
 
-              {/* Info for Sell listings */}
+              {/* Exchange: Show tickets offered by listing owner */}
+              {listing.type === 'Exchange' && listing.offered_tickets && listing.offered_tickets.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    對方提供的票券
+                  </label>
+                  <p className="text-sm text-gray-600 mb-3">
+                    以下是對方願意交換的票券：
+                  </p>
+                  <div className="space-y-2">
+                    {listing.offered_tickets.map((ticket: any) => (
+                      <div
+                        key={ticket.ticket_id}
+                        className="flex items-center gap-3 p-3 border border-blue-300 bg-blue-50 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900">
+                            {ticket.event_name}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {ticket.seat_area} {ticket.seat_number} - ${ticket.price}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatDateTime(ticket.start_time)}
+                          </p>
+                        </div>
+                        <span className="text-green-600 font-semibold">✓</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {listing.type === 'Exchange' && (!listing.offered_tickets || listing.offered_tickets.length === 0) && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ 此換票貼文尚未指定提供的票券
+                  </p>
+                </div>
+              )}
+
+              {/* Info for different listing types */}
               {listing.type === 'Sell' && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800">
@@ -320,9 +395,21 @@ export default function ListingDetailPage() {
                   </p>
                 </div>
               )}
+              
+              {listing.type === 'Exchange' && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-800 mb-2">
+                    ℹ️ 此為換票貼文，雙方交換票券。
+                  </p>
+                  <p className="text-sm text-orange-800">
+                    • 協議金額為0表示等價交換<br />
+                    • 協議金額大於0表示您需要補差價給對方
+                  </p>
+                </div>
+              )}
 
               {/* Balance Check */}
-              {listing.type === 'Sell' && (
+              {(listing.type === 'Sell' || (listing.type === 'Exchange' && parseFloat(agreedPrice || '0') > 0)) && (
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-700">
                     目前餘額：<span className="font-bold">${user.balance.toFixed(2)}</span>
@@ -338,7 +425,12 @@ export default function ListingDetailPage() {
               {/* Submit Button */}
               <button
                 onClick={handleInitiateTrade}
-                disabled={tradeLoading || (listing.type === 'Buy' && selectedTickets.length === 0)}
+                disabled={
+                  tradeLoading || 
+                  (listing.type === 'Buy' && selectedTickets.length === 0) ||
+                  (listing.type === 'Exchange' && selectedTickets.length === 0) ||
+                  (listing.type === 'Exchange' && (!listing.offered_tickets || listing.offered_tickets.length === 0))
+                }
                 className="w-full bg-blue-900 text-white py-3 rounded-lg hover:bg-blue-800 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {tradeLoading ? '建立中...' : '確認發起交易'}

@@ -50,8 +50,36 @@ export async function GET(
       );
     }
 
+    const listing = result.rows[0];
+
+    // If listing has offered tickets, fetch ticket details
+    let offeredTickets = [];
+    if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
+      const ticketsResult = await query(
+        `SELECT 
+          t.*,
+          e.event_name,
+          e.venue,
+          et.start_time,
+          et.end_time
+         FROM ticket t
+         JOIN eventtime et ON t.eventtime_id = et.eventtime_id
+         JOIN event e ON et.event_id = e.event_id
+         WHERE t.ticket_id = ANY($1)
+         ORDER BY et.start_time ASC`,
+        [listing.offered_ticket_ids]
+      );
+      offeredTickets = ticketsResult.rows.map(row => ({
+        ...row,
+        price: parseFloat(row.price),
+      }));
+    }
+
     return NextResponse.json({
-      listing: result.rows[0],
+      listing: {
+        ...listing,
+        offered_tickets: offeredTickets,
+      },
     });
 
   } catch (error) {

@@ -106,7 +106,7 @@ export async function POST(
           );
         }
 
-        // Get buyer and seller info
+        // Get participants info
         const participantsResult = await client.query(
           `SELECT user_id, role FROM trade_participant WHERE trade_id = $1`,
           [tradeId]
@@ -114,43 +114,88 @@ export async function POST(
 
         let buyerId: number | null = null;
         let sellerId: number | null = null;
+        let isExchange = false;
 
         for (const p of participantsResult.rows) {
           if (p.role === 'buyer') buyerId = p.user_id;
           if (p.role === 'seller') sellerId = p.user_id;
+          if (p.role === 'exchanger') isExchange = true;
         }
 
-        if (!buyerId || !sellerId) {
-          throw new Error('Invalid trade participants');
+        // Handle balance changes only if not an exchange or if there's a price difference
+        if (trade.agreed_price !== 0) {
+          if (isExchange) {
+            // For exchange with price difference
+            // The agreed_price is paid by one exchanger to the other
+            // Determine payer and receiver based on ticket values or agreed terms
+            const participants = participantsResult.rows;
+            const user1 = participants[0].user_id;
+            const user2 = participants[1].user_id;
+            
+            // For simplicity, listing owner receives the price difference
+            await client.query(
+              `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
+              [trade.agreed_price, user1]
+            );
+
+            await client.query(
+              `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
+              [trade.agreed_price, user2]
+            );
+
+            // Check payer has sufficient balance
+            const payerBalanceResult = await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1`,
+              [user2]
+            );
+
+            if (parseFloat(payerBalanceResult.rows[0].balance) < 0) {
+              throw new Error('Insufficient balance to complete trade');
+            }
+
+            // Log balance changes
+            await client.query(
+              `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
+               VALUES ($1, $2, $3, 'TRADE_PRICE_DIFFERENCE'), ($4, $2, $5, 'TRADE_PRICE_DIFFERENCE')`,
+              [user1, tradeId, trade.agreed_price, user2, -trade.agreed_price]
+            );
+            
+          } else {
+            // Regular buy/sell transaction
+            if (!buyerId || !sellerId) {
+              throw new Error('Invalid trade participants');
+            }
+
+            // Update balances
+            await client.query(
+              `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
+              [trade.agreed_price, sellerId]
+            );
+
+            await client.query(
+              `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
+              [trade.agreed_price, buyerId]
+            );
+
+            // Check buyer has sufficient balance
+            const buyerBalanceResult = await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1`,
+              [buyerId]
+            );
+
+            if (parseFloat(buyerBalanceResult.rows[0].balance) < 0) {
+              throw new Error('Insufficient balance to complete trade');
+            }
+
+            // Log balance changes
+            await client.query(
+              `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
+               VALUES ($1, $2, $3, 'TRADE_PAYMENT'), ($4, $2, $5, 'TRADE_PAYMENT')`,
+              [sellerId, tradeId, trade.agreed_price, buyerId, -trade.agreed_price]
+            );
+          }
         }
-
-        // Update balances
-        await client.query(
-          `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
-          [trade.agreed_price, sellerId]
-        );
-
-        await client.query(
-          `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-          [trade.agreed_price, buyerId]
-        );
-
-        // Check buyer has sufficient balance
-        const buyerBalanceResult = await client.query(
-          `SELECT balance FROM "USER" WHERE user_id = $1`,
-          [buyerId]
-        );
-
-        if (parseFloat(buyerBalanceResult.rows[0].balance) < 0) {
-          throw new Error('Insufficient balance to complete trade');
-        }
-
-        // Log balance changes
-        await client.query(
-          `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
-           VALUES ($1, $2, $3, 'TRADE_PAYMENT'), ($4, $2, $5, 'TRADE_PAYMENT')`,
-          [sellerId, tradeId, trade.agreed_price, buyerId, -trade.agreed_price]
-        );
+        // If agreed_price is 0, no balance changes needed (pure ticket exchange)
 
         // Complete trade and listing
         await client.query(

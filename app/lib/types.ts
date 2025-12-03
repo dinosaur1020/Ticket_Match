@@ -52,6 +52,7 @@ export interface Listing {
   content?: string;
   status: 'Active' | 'Canceled' | 'Completed' | 'Expired';
   type: 'Sell' | 'Buy' | 'Exchange';
+  offered_ticket_ids?: number[];
   created_at: Date;
 }
 
@@ -100,6 +101,7 @@ export interface ListingWithEvent extends Listing {
   event_name: string;
   venue: string;
   username: string;
+  offered_tickets?: TicketWithEvent[];
 }
 
 export interface TradeWithDetails extends Trade {

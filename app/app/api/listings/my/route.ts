@@ -8,30 +8,22 @@ export async function GET() {
 
     const result = await query(
       `SELECT 
-        t.*,
-        e.event_id,
+        l.*,
         e.event_name,
-        e.venue,
-        et.start_time,
-        et.end_time,
-        et.eventtime_id
-       FROM ticket t
-       JOIN eventtime et ON t.eventtime_id = et.eventtime_id
-       JOIN event e ON et.event_id = e.event_id
-       WHERE t.owner_id = $1
-       ORDER BY et.start_time ASC`,
+        e.venue
+       FROM listing l
+       JOIN event e ON l.event_id = e.event_id
+       WHERE l.user_id = $1
+       ORDER BY l.created_at DESC`,
       [session.user_id]
     );
 
     return NextResponse.json({
-      tickets: result.rows.map(row => ({
-        ...row,
-        price: parseFloat(row.price),
-      })),
+      listings: result.rows,
     });
 
   } catch (error: any) {
-    console.error('Get my tickets error:', error);
+    console.error('Get my listings error:', error);
     
     if (error.message === 'Unauthorized') {
       return NextResponse.json(
@@ -41,7 +33,7 @@ export async function GET() {
     }
     
     return NextResponse.json(
-      { error: 'Failed to fetch tickets' },
+      { error: 'Failed to fetch listings' },
       { status: 500 }
     );
   }

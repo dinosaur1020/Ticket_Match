@@ -10,6 +10,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'tickets' | 'listings' | 'trades'>('tickets');
   const [tickets, setTickets] = useState<any[]>([]);
+  const [listings, setListings] = useState<any[]>([]);
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,6 +33,10 @@ export default function DashboardPage() {
         const response = await fetch('/api/tickets/my');
         const data = await response.json();
         setTickets(data.tickets || []);
+      } else if (activeTab === 'listings') {
+        const response = await fetch('/api/listings/my');
+        const data = await response.json();
+        setListings(data.listings || []);
       } else if (activeTab === 'trades') {
         const response = await fetch('/api/trades/my');
         const data = await response.json();
@@ -66,6 +71,29 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCancelListing = async (listingId: number) => {
+    if (!confirm('確定要取消此貼文嗎？')) return;
+
+    try {
+      const response = await fetch(`/api/listings/${listingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Canceled' }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('貼文已取消');
+        await fetchData();
+      } else {
+        alert(data.error || '取消貼文失敗');
+      }
+    } catch (error) {
+      console.error('Failed to cancel listing:', error);
+      alert('取消貼文失敗');
+    }
+  };
+
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('zh-TW', {
       year: 'numeric',
@@ -86,13 +114,35 @@ export default function DashboardPage() {
       <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900">我的票券管理</h1>
+            <h1 className="text-4xl font-bold text-gray-900">個人管理</h1>
             <div className="text-right">
               <p className="text-sm text-gray-600">目前餘額</p>
               <p className="text-3xl font-bold text-blue-900">
                 ${user.balance.toFixed(2)}
               </p>
             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 mb-8">
+            <button
+              onClick={() => router.push('/tickets/add')}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold"
+            >
+              ➕ 新增票券
+            </button>
+            <button
+              onClick={() => router.push('/listings/create')}
+              className="bg-blue-900 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition font-semibold"
+            >
+              📝 建立貼文
+            </button>
+            <button
+              onClick={() => router.push('/listings')}
+              className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition font-semibold"
+            >
+              🔍 瀏覽貼文
+            </button>
           </div>
 
           {/* Tabs */}
@@ -106,6 +156,16 @@ export default function DashboardPage() {
               }`}
             >
               我的票券
+            </button>
+            <button
+              onClick={() => setActiveTab('listings')}
+              className={`pb-4 px-2 font-semibold transition ${
+                activeTab === 'listings'
+                  ? 'text-blue-900 border-b-2 border-blue-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              我的貼文
             </button>
             <button
               onClick={() => setActiveTab('trades')}
@@ -173,6 +233,91 @@ export default function DashboardPage() {
                                 ${ticket.price.toFixed(2)}
                               </p>
                             </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Listings Tab */}
+              {activeTab === 'listings' && (
+                <div className="bg-white rounded-xl shadow-lg p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                    我的貼文 ({listings.length})
+                  </h2>
+                  {listings.length === 0 ? (
+                    <p className="text-gray-600 text-center py-8">目前沒有貼文</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {listings.map((listing) => (
+                        <div
+                          key={listing.listing_id}
+                          className="border border-gray-200 rounded-lg p-4"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="font-bold text-lg text-gray-900">
+                                  {listing.event_name}
+                                </h3>
+                                <span
+                                  className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                                    listing.type === 'Sell'
+                                      ? 'bg-green-100 text-green-700'
+                                      : listing.type === 'Buy'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-orange-100 text-orange-700'
+                                  }`}
+                                >
+                                  {listing.type === 'Sell' ? '售票' : listing.type === 'Buy' ? '收票' : '換票'}
+                                </span>
+                              </div>
+                              <p className="text-gray-600">📍 {listing.venue}</p>
+                              <p className="text-gray-600">
+                                🗓️ {formatDateTime(listing.event_date)}
+                              </p>
+                              {listing.content && (
+                                <p className="text-gray-700 mt-2 text-sm">
+                                  {listing.content}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500 mt-2">
+                                建立時間: {formatDateTime(listing.created_at)}
+                              </p>
+                            </div>
+                            <div className="text-right ml-4">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                                  listing.status === 'Active'
+                                    ? 'bg-green-100 text-green-700'
+                                    : listing.status === 'Completed'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {listing.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => router.push(`/listings/${listing.listing_id}`)}
+                              className="flex-1 bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold text-sm"
+                            >
+                              查看詳情
+                            </button>
+                            {listing.status === 'Active' && (
+                              <button
+                                onClick={() => handleCancelListing(listing.listing_id)}
+                                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition font-semibold text-sm"
+                              >
+                                取消貼文
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

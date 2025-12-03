@@ -57,7 +57,7 @@ export default function Navigation() {
                     pathname === '/dashboard' ? 'font-bold' : ''
                   }`}
                 >
-                  我的票券
+                  個人管理
                 </Link>
                 {isBusinessOperator && (
                   <Link

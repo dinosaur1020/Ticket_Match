@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { event_id, event_date, content, type } = body;
+    const { event_id, event_date, content, type, offered_ticket_ids } = body;
 
     // Validation
     if (!event_id || !event_date || !type) {
@@ -88,11 +88,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // For Exchange and Sell listings, offered_ticket_ids is recommended
+    if ((type === 'Exchange' || type === 'Sell') && (!offered_ticket_ids || offered_ticket_ids.length === 0)) {
+      return NextResponse.json(
+        { error: 'Exchange and Sell listings should specify offered tickets' },
+        { status: 400 }
+      );
+    }
+
+    // Verify tickets belong to user and are active
+    if (offered_ticket_ids && offered_ticket_ids.length > 0) {
+      const ticketCheck = await query(
+        `SELECT ticket_id, owner_id, status FROM ticket WHERE ticket_id = ANY($1)`,
+        [offered_ticket_ids]
+      );
+
+      if (ticketCheck.rows.length !== offered_ticket_ids.length) {
+        return NextResponse.json(
+          { error: 'Some tickets do not exist' },
+          { status: 400 }
+        );
+      }
+
+      for (const ticket of ticketCheck.rows) {
+        if (ticket.owner_id !== session.user_id) {
+          return NextResponse.json(
+            { error: 'You can only list your own tickets' },
+            { status: 403 }
+          );
+        }
+        if (ticket.status !== 'Active') {
+          return NextResponse.json(
+            { error: `Ticket ${ticket.ticket_id} is not active (status: ${ticket.status})` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const result = await query(
-      `INSERT INTO listing (user_id, event_id, event_date, content, type, status)
-       VALUES ($1, $2, $3, $4, $5, 'Active')
+      `INSERT INTO listing (user_id, event_id, event_date, content, type, status, offered_ticket_ids)
+       VALUES ($1, $2, $3, $4, $5, 'Active', $6)
        RETURNING *`,
-      [session.user_id, event_id, event_date, content || null, type]
+      [session.user_id, event_id, event_date, content || null, type, offered_ticket_ids || null]
     );
 
     return NextResponse.json({

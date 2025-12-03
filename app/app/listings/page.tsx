@@ -60,7 +60,15 @@ export default function ListingsPage() {
       <Navigation />
       <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-8">所有貼文</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-900">所有貼文</h1>
+            <Link
+              href="/listings/create"
+              className="bg-blue-900 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition font-semibold"
+            >
+              ➕ 建立貼文
+            </Link>
+          </div>
 
           {/* Filter Buttons */}
           <div className="flex gap-3 mb-8">
