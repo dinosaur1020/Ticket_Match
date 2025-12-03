@@ -41,12 +41,44 @@ export async function GET(request: NextRequest) {
 
     const result = await query(sql, params);
 
+    // Fetch ticket details for each listing with offered_ticket_ids
+    const listingsWithTickets = await Promise.all(
+      result.rows.map(async (listing) => {
+        let offeredTickets = [];
+        
+        if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
+          const ticketsResult = await query(
+            `SELECT 
+              t.ticket_id,
+              t.seat_area,
+              t.seat_number,
+              t.price,
+              t.status
+             FROM ticket t
+             WHERE t.ticket_id = ANY($1)
+             ORDER BY t.seat_area, t.seat_number`,
+            [listing.offered_ticket_ids]
+          );
+          
+          offeredTickets = ticketsResult.rows.map(row => ({
+            ...row,
+            price: parseFloat(row.price),
+          }));
+        }
+        
+        return {
+          ...listing,
+          offered_tickets: offeredTickets,
+        };
+      })
+    );
+
     return NextResponse.json({
-      listings: result.rows,
+      listings: listingsWithTickets,
       pagination: {
         limit,
         offset,
-        count: result.rows.length,
+        count: listingsWithTickets.length,
       },
     });
 

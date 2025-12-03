@@ -63,6 +63,38 @@ export async function GET(
       [eventId]
     );
 
+    // Fetch ticket details for each listing with offered_ticket_ids
+    const listingsWithTickets = await Promise.all(
+      listingsResult.rows.map(async (listing) => {
+        let offeredTickets = [];
+        
+        if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
+          const ticketsResult = await query(
+            `SELECT 
+              t.ticket_id,
+              t.seat_area,
+              t.seat_number,
+              t.price,
+              t.status
+             FROM ticket t
+             WHERE t.ticket_id = ANY($1)
+             ORDER BY t.seat_area, t.seat_number`,
+            [listing.offered_ticket_ids]
+          );
+          
+          offeredTickets = ticketsResult.rows.map(row => ({
+            ...row,
+            price: parseFloat(row.price),
+          }));
+        }
+        
+        return {
+          ...listing,
+          offered_tickets: offeredTickets,
+        };
+      })
+    );
+
     const event = eventResult.rows[0];
 
     return NextResponse.json({
@@ -71,7 +103,7 @@ export async function GET(
         performers: event.performers.filter((p: string | null) => p !== null),
       },
       event_times: timesResult.rows,
-      listings: listingsResult.rows,
+      listings: listingsWithTickets,
     });
 
   } catch (error) {

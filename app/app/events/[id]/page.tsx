@@ -146,6 +146,31 @@ export default function EventDetailPage() {
                         {listing.content && (
                           <p className="text-gray-700 mb-2">{listing.content}</p>
                         )}
+                        
+                        {/* Display ticket prices if available */}
+                        {listing.offered_tickets && listing.offered_tickets.length > 0 && (
+                          <div className="mt-2 mb-2 p-2 bg-gray-50 rounded border border-gray-200">
+                            <p className="text-xs font-semibold text-gray-600 mb-1">提供的票券：</p>
+                            <div className="space-y-1">
+                              {listing.offered_tickets.slice(0, 2).map((ticket: any) => (
+                                <div key={ticket.ticket_id} className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-700">
+                                    {ticket.seat_area}區 {ticket.seat_number}號
+                                  </span>
+                                  <span className="font-semibold text-green-600">
+                                    ${ticket.price.toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                              {listing.offered_tickets.length > 2 && (
+                                <p className="text-xs text-gray-500">
+                                  +{listing.offered_tickets.length - 2} 張票券
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
                         <p className="text-sm text-gray-500">
                           {new Date(listing.created_at).toLocaleDateString('zh-TW')}
                         </p>

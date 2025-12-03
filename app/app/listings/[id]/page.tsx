@@ -264,6 +264,53 @@ export default function ListingDetailPage() {
               </div>
             )}
 
+            {/* Display Offered Tickets */}
+            {listing.offered_tickets && listing.offered_tickets.length > 0 && (
+              <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  {listing.type === 'Sell' ? '出售票券：' : '提供票券：'}
+                </h3>
+                <div className="space-y-3">
+                  {listing.offered_tickets.map((ticket: any) => (
+                    <div
+                      key={ticket.ticket_id}
+                      className="flex justify-between items-center p-3 bg-white rounded-lg border border-green-300"
+                    >
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-900">
+                          {ticket.event_name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          📍 {ticket.venue}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          🎫 {ticket.seat_area}區 {ticket.seat_number}號
+                        </p>
+                        {ticket.start_time && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            🗓️ {formatDateTime(ticket.start_time)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-green-600">
+                          ${ticket.price.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500">票券價格</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {listing.offered_tickets.length > 1 && (
+                  <div className="mt-3 pt-3 border-t border-green-300">
+                    <p className="text-right font-semibold text-gray-900">
+                      總計: ${listing.offered_tickets.reduce((sum: number, t: any) => sum + t.price, 0).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="text-sm text-gray-500 mt-4">
               發布時間：{new Date(listing.created_at).toLocaleString('zh-TW')}
             </p>

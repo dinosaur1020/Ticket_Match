@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 
+interface Ticket {
+  ticket_id: number;
+  seat_area: string;
+  seat_number: string;
+  price: number;
+  status: string;
+}
+
 interface Listing {
   listing_id: number;
   user_id: number;
@@ -16,6 +24,7 @@ interface Listing {
   status: string;
   type: 'Sell' | 'Buy' | 'Exchange';
   created_at: string;
+  offered_tickets?: Ticket[];
 }
 
 export default function ListingsPage() {
@@ -162,6 +171,30 @@ export default function ListingsPage() {
                     <p className="text-sm text-gray-700 mb-3 line-clamp-2">
                       {listing.content}
                     </p>
+                  )}
+
+                  {/* Display ticket prices if available */}
+                  {listing.offered_tickets && listing.offered_tickets.length > 0 && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">提供的票券：</p>
+                      <div className="space-y-1">
+                        {listing.offered_tickets.slice(0, 3).map((ticket) => (
+                          <div key={ticket.ticket_id} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-700">
+                              {ticket.seat_area}區 {ticket.seat_number}號
+                            </span>
+                            <span className="font-semibold text-green-600">
+                              ${ticket.price.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                        {listing.offered_tickets.length > 3 && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            +{listing.offered_tickets.length - 3} 張票券
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   <div className="pt-3 border-t border-gray-200">
