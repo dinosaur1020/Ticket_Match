@@ -16,8 +16,7 @@ TRUNCATE TABLE event CASCADE;
 TRUNCATE TABLE user_role CASCADE;
 TRUNCATE TABLE "USER" CASCADE;
 
--- Reset sequences
-ALTER SEQUENCE "USER_user_id_seq" RESTART WITH 1;
+-- Reset sequences (UUIDs don't need resetting)
 ALTER SEQUENCE event_event_id_seq RESTART WITH 1;
 ALTER SEQUENCE eventtime_eventtime_id_seq RESTART WITH 1;
 ALTER SEQUENCE ticket_ticket_id_seq RESTART WITH 1;
@@ -29,29 +28,33 @@ ALTER SEQUENCE user_balance_log_log_id_seq RESTART WITH 1;
 -- USERS (password for all: "password123")
 -- Hash generated with bcrypt, rounds=10
 -- =========================================================
-INSERT INTO "USER" (username, password_hash, email, status, balance) VALUES
-('alice', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'alice@example.com', 'Active', 15000),
-('bob', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'bob@example.com', 'Active', 12000),
-('charlie', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'charlie@example.com', 'Active', 8000),
-('david', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'david@example.com', 'Active', 20000),
-('emma', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'emma@example.com', 'Active', 5000),
-('frank', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'frank@example.com', 'Active', 18000),
-('grace', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'grace@example.com', 'Suspended', 0),
-('admin', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'admin@example.com', 'Active', 50000),
-('operator', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'operator@example.com', 'Active', 30000);
-
--- User roles
-INSERT INTO user_role (user_id, role) VALUES
-(1, 'User'),
-(2, 'User'),
-(3, 'User'),
-(4, 'User'),
-(5, 'User'),
-(6, 'User'),
-(7, 'User'),
-(8, 'Admin'),
-(9, 'BusinessOperator'),
-(9, 'User');
+-- Insert users and capture their UUIDs
+WITH user_insert AS (
+    INSERT INTO "USER" (username, password_hash, email, status, balance) VALUES
+    ('alice', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'alice@example.com', 'Active', 15000),
+    ('bob', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'bob@example.com', 'Active', 12000),
+    ('charlie', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'charlie@example.com', 'Active', 8000),
+    ('david', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'david@example.com', 'Active', 20000),
+    ('emma', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'emma@example.com', 'Active', 5000),
+    ('frank', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'frank@example.com', 'Active', 18000),
+    ('grace', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'grace@example.com', 'Suspended', 0),
+    ('admin', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'admin@example.com', 'Active', 50000),
+    ('operator', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'operator@example.com', 'Active', 30000)
+    RETURNING user_id, username
+)
+-- User roles - map usernames to user_ids
+INSERT INTO user_role (user_id, role)
+SELECT ui.user_id,
+       CASE ui.username
+           WHEN 'admin' THEN 'Admin'
+           WHEN 'operator' THEN 'BusinessOperator'
+           ELSE 'User'
+       END as role
+FROM user_insert ui
+UNION ALL
+SELECT ui.user_id, 'User' as role
+FROM user_insert ui
+WHERE ui.username = 'operator';
 
 -- =========================================================
 -- EVENTS
@@ -153,101 +156,101 @@ INSERT INTO eventtime (event_id, start_time, end_time) VALUES
 -- =========================================================
 INSERT INTO ticket (eventtime_id, owner_id, seat_area, seat_number, price, status) VALUES
 -- 五月天 12/20 (Alice has tickets)
-(1, 1, 'A區', 'A1-01', 3200, 'Active'),
-(1, 1, 'A區', 'A1-02', 3200, 'Active'),
-(1, 2, 'B區', 'B3-15', 2800, 'Active'),
-(1, 3, 'C區', 'C5-20', 2200, 'Active'),
-(1, 4, 'A區', 'A2-10', 3200, 'Active'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-01', 3200, 'Active'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-02', 3200, 'Active'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'B區', 'B3-15', 2800, 'Active'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'C區', 'C5-20', 2200, 'Active'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'david'), 'A區', 'A2-10', 3200, 'Active'),
 -- 五月天 12/21 (Bob has tickets)
-(2, 2, 'A區', 'A3-05', 3200, 'Active'),
-(2, 2, 'A區', 'A3-06', 3200, 'Active'),
-(2, 5, 'B區', 'B2-12', 2800, 'Active'),
-(2, 6, 'C區', 'C4-18', 2200, 'Active'),
+(2, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'A區', 'A3-05', 3200, 'Active'),
+(2, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'A區', 'A3-06', 3200, 'Active'),
+(2, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'B區', 'B2-12', 2800, 'Active'),
+(2, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'C區', 'C4-18', 2200, 'Active'),
 -- 五月天 12/27
-(3, 1, 'A區', 'A1-15', 3200, 'Active'),
-(3, 3, 'B區', 'B1-08', 2800, 'Active'),
-(3, 4, 'C區', 'C2-25', 2200, 'Active'),
+(3, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-15', 3200, 'Active'),
+(3, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'B區', 'B1-08', 2800, 'Active'),
+(3, (SELECT user_id FROM "USER" WHERE username = 'david'), 'C區', 'C2-25', 2200, 'Active'),
 -- 周杰倫 (高價票)
-(4, 2, 'VIP區', 'V1-01', 8800, 'Active'),
-(4, 3, 'VIP區', 'V1-02', 8800, 'Active'),
-(4, 4, 'A區', 'A1-20', 5800, 'Active'),
-(5, 1, 'A區', 'A2-15', 5800, 'Active'),
-(5, 5, 'B區', 'B3-10', 4200, 'Active'),
-(6, 6, 'VIP區', 'V2-05', 8800, 'Active'),
+(4, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'VIP區', 'V1-01', 8800, 'Active'),
+(4, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'VIP區', 'V1-02', 8800, 'Active'),
+(4, (SELECT user_id FROM "USER" WHERE username = 'david'), 'A區', 'A1-20', 5800, 'Active'),
+(5, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A2-15', 5800, 'Active'),
+(5, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'B區', 'B3-10', 4200, 'Active'),
+(6, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'VIP區', 'V2-05', 8800, 'Active'),
 -- 蔡依林
-(8, 1, 'A區', 'A1-10', 4200, 'Active'),
-(8, 2, 'A區', 'A1-11', 4200, 'Active'),
-(9, 3, 'B區', 'B2-20', 3200, 'Active'),
+(8, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-10', 4200, 'Active'),
+(8, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'A區', 'A1-11', 4200, 'Active'),
+(9, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'B區', 'B2-20', 3200, 'Active'),
 -- 告五人
-(10, 4, 'A區', 'A1-05', 2800, 'Active'),
-(10, 5, 'A區', 'A1-06', 2800, 'Active'),
-(11, 6, 'B區', 'B1-12', 2200, 'Active'),
+(10, (SELECT user_id FROM "USER" WHERE username = 'david'), 'A區', 'A1-05', 2800, 'Active'),
+(10, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'A區', 'A1-06', 2800, 'Active'),
+(11, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'B區', 'B1-12', 2200, 'Active'),
 -- 林俊傑
-(12, 1, 'VIP區', 'V1-08', 6800, 'Active'),
-(13, 2, 'A區', 'A2-18', 4800, 'Active'),
-(14, 3, 'B區', 'B3-22', 3800, 'Active'),
+(12, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'VIP區', 'V1-08', 6800, 'Active'),
+(13, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'A區', 'A2-18', 4800, 'Active'),
+(14, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'B區', 'B3-22', 3800, 'Active'),
 -- 田馥甄
-(15, 4, 'A區', 'A1-12', 3800, 'Active'),
-(16, 5, 'A區', 'A2-09', 3800, 'Active'),
+(15, (SELECT user_id FROM "USER" WHERE username = 'david'), 'A區', 'A1-12', 3800, 'Active'),
+(16, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'A區', 'A2-09', 3800, 'Active'),
 -- 音樂節
-(17, 1, '搖滾區', 'R-001', 2800, 'Active'),
-(17, 2, '搖滾區', 'R-002', 2800, 'Active'),
-(17, 3, '一般區', 'G-150', 1800, 'Active'),
-(18, 4, '搖滾區', 'R-050', 2800, 'Active'),
+(17, (SELECT user_id FROM "USER" WHERE username = 'alice'), '搖滾區', 'R-001', 2800, 'Active'),
+(17, (SELECT user_id FROM "USER" WHERE username = 'bob'), '搖滾區', 'R-002', 2800, 'Active'),
+(17, (SELECT user_id FROM "USER" WHERE username = 'charlie'), '一般區', 'G-150', 1800, 'Active'),
+(18, (SELECT user_id FROM "USER" WHERE username = 'david'), '搖滾區', 'R-050', 2800, 'Active'),
 -- 金曲獎
-(19, 5, 'VIP區', 'V1-01', 12000, 'Active'),
+(19, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'VIP區', 'V1-01', 12000, 'Active'),
 -- 其他演唱會
-(20, 6, 'A區', 'A1-08', 2800, 'Active'),
-(21, 1, 'A區', 'A1-15', 2800, 'Active'),
-(22, 2, 'B區', 'B2-10', 2200, 'Active'),
-(23, 3, 'A區', 'A1-20', 3200, 'Active'),
-(24, 4, 'A區', 'A1-05', 1800, 'Active'),
-(25, 5, 'A區', 'A2-12', 1500, 'Active'),
-(26, 6, 'A區', 'A1-18', 2200, 'Active'),
-(27, 1, 'A區', 'A1-25', 3200, 'Active');
+(20, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'A區', 'A1-08', 2800, 'Active'),
+(21, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-15', 2800, 'Active'),
+(22, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'B區', 'B2-10', 2200, 'Active'),
+(23, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'A區', 'A1-20', 3200, 'Active'),
+(24, (SELECT user_id FROM "USER" WHERE username = 'david'), 'A區', 'A1-05', 1800, 'Active'),
+(25, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'A區', 'A2-12', 1500, 'Active'),
+(26, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'A區', 'A1-18', 2200, 'Active'),
+(27, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'A區', 'A1-25', 3200, 'Active');
 
 -- =========================================================
 -- LISTINGS (貼文)
 -- =========================================================
 INSERT INTO listing (user_id, event_id, event_date, content, status, type, offered_ticket_ids) VALUES
--- Alice's listings
-(1, 1, '2025-12-20 19:00:00', '割愛轉讓五月天A區2連號，原價出售！', 'Active', 'Sell', '{1,2}'),
-(1, 3, '2025-12-27 19:00:00', '徵求五月天12/27 B區票券，價格可議', 'Active', 'Buy', NULL),
-(1, 2, '2026-01-10 19:30:00', '周杰倫A區1張，可換五月天任一場', 'Active', 'Exchange', '{5}'),
--- Bob's listings
-(2, 2, '2026-01-10 19:30:00', '周杰倫VIP區1張，高價出售', 'Active', 'Sell', '{10,11}'),
-(2, 1, '2025-12-21 19:00:00', '五月天12/21 A區連號2張，誠心售出', 'Active', 'Sell', '{6,7}'),
-(2, 3, '2026-02-14 19:00:00', '徵蔡依林情人節場次票1張', 'Active', 'Buy', NULL),
--- Charlie's listings
-(3, 1, '2025-12-20 19:00:00', '五月天C區1張，便宜賣', 'Completed', 'Sell', '{4}'),
-(3, 2, '2026-01-10 19:30:00', 'VIP區1張出售，可議價', 'Active', 'Sell', '{14}'),
-(3, 4, '2025-12-25 19:00:00', '告五人聖誕場，2張一起賣', 'Active', 'Sell', '{18,19}'),
--- David's listings
-(4, 5, '2026-03-07 19:00:00', '林俊傑演唱會B區票，原價轉讓', 'Active', 'Sell', '{23}'),
-(4, 1, '2025-12-20 19:00:00', '徵五月天A區1張，價格好談', 'Active', 'Buy', NULL),
-(4, 7, '2026-05-01 14:00:00', '音樂節首日票1張，搖滾區', 'Active', 'Sell', '{26}'),
--- Emma's listings
-(5, 2, '2026-01-11 19:30:00', '徵周杰倫任一場次，B區即可', 'Active', 'Buy', NULL),
-(5, 4, '2025-12-25 19:00:00', '告五人票券出售', 'Active', 'Sell', '{20,21}'),
-(5, 8, '2026-06-28 18:00:00', '金曲獎VIP票，高價出售', 'Active', 'Sell', '{27}'),
--- Frank's listings
-(6, 1, '2025-12-21 19:00:00', '五月天C區1張，售1800', 'Active', 'Sell', '{9}'),
-(6, 2, '2026-01-17 19:30:00', '周杰倫VIP區，換五月天任一場VIP', 'Active', 'Exchange', '{16}'),
-(6, 3, '2026-02-14 19:00:00', 'Jolin情人節場，2張連號出售', 'Active', 'Sell', '{24,25}'),
--- More listings for analytics
-(1, 5, '2026-03-07 19:00:00', 'JJ演唱會A區票1張', 'Active', 'Sell', '{22}'),
-(2, 6, '2026-04-20 19:00:00', 'Hebe票券轉讓', 'Active', 'Sell', '{28,29}'),
-(3, 7, '2026-05-01 14:00:00', '音樂節票2張', 'Active', 'Sell', '{30,31}'),
-(4, 9, '2026-02-20 19:00:00', '周興哲演唱會', 'Active', 'Sell', '{32}'),
-(5, 10, '2026-03-21 19:00:00', 'LaLa演唱會票', 'Active', 'Sell', '{33}');
+-- Alice's listings (Alice owns tickets: 1,2,10,16,19,22,30,37)
+((SELECT user_id FROM "USER" WHERE username = 'alice'), 1, '2025-12-20 19:00:00', '割愛轉讓五月天A區2連號，原價出售！', 'Active', 'Sell', '{1,2}'),
+((SELECT user_id FROM "USER" WHERE username = 'alice'), 3, '2025-12-27 19:00:00', '徵求五月天12/27 B區票券，價格可議', 'Active', 'Buy', NULL),
+((SELECT user_id FROM "USER" WHERE username = 'alice'), 2, '2026-01-10 19:30:00', '周杰倫A區1張，可換五月天任一場', 'Active', 'Exchange', '{16}'),
+-- Bob's listings (Bob owns tickets: 3,6,7,13,20,26,28,31,38)
+((SELECT user_id FROM "USER" WHERE username = 'bob'), 2, '2026-01-10 19:30:00', '周杰倫VIP區1張，高價出售', 'Active', 'Sell', '{13}'),
+((SELECT user_id FROM "USER" WHERE username = 'bob'), 1, '2025-12-21 19:00:00', '五月天12/21 A區連號2張，誠心售出', 'Active', 'Sell', '{6,7}'),
+((SELECT user_id FROM "USER" WHERE username = 'bob'), 3, '2026-02-14 19:00:00', '徵蔡依林情人節場次票1張', 'Active', 'Buy', NULL),
+-- Charlie's listings (Charlie owns tickets: 4,11,14,21,24,27,32,39)
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 1, '2025-12-20 19:00:00', '五月天C區1張，便宜賣', 'Completed', 'Sell', '{4}'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 2, '2026-01-10 19:30:00', 'VIP區1張出售，可議價', 'Active', 'Sell', '{14}'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 4, '2025-12-25 19:00:00', '告五人聖誕場，2張一起賣', 'Active', 'Sell', '{24}'),
+-- David's listings (David owns tickets: 5,8,12,15,22,28,33,40)
+((SELECT user_id FROM "USER" WHERE username = 'david'), 5, '2026-03-07 19:00:00', '林俊傑演唱會B區票，原價轉讓', 'Active', 'Sell', '{15}'),
+((SELECT user_id FROM "USER" WHERE username = 'david'), 1, '2025-12-20 19:00:00', '徵五月天A區1張，價格好談', 'Active', 'Buy', NULL),
+((SELECT user_id FROM "USER" WHERE username = 'david'), 7, '2026-05-01 14:00:00', '音樂節首日票1張，搖滾區', 'Active', 'Sell', '{22}'),
+-- Emma's listings (Emma owns tickets: 9,17,23,29,34,41)
+((SELECT user_id FROM "USER" WHERE username = 'emma'), 2, '2026-01-11 19:30:00', '徵周杰倫任一場次，B區即可', 'Active', 'Buy', NULL),
+((SELECT user_id FROM "USER" WHERE username = 'emma'), 4, '2025-12-25 19:00:00', '告五人票券出售', 'Active', 'Sell', '{23}'),
+((SELECT user_id FROM "USER" WHERE username = 'emma'), 8, '2026-06-28 18:00:00', '金曲獎VIP票，高價出售', 'Active', 'Sell', '{29}'),
+-- Frank's listings (Frank owns tickets: 18,25,35,42)
+((SELECT user_id FROM "USER" WHERE username = 'frank'), 1, '2025-12-21 19:00:00', '五月天C區1張，售1800', 'Active', 'Sell', '{18}'),
+((SELECT user_id FROM "USER" WHERE username = 'frank'), 2, '2026-01-17 19:30:00', '周杰倫VIP區，換五月天任一場VIP', 'Active', 'Exchange', '{35}'),
+((SELECT user_id FROM "USER" WHERE username = 'frank'), 3, '2026-02-14 19:00:00', 'Jolin情人節場，2張連號出售', 'Active', 'Sell', '{25}'),
+-- More listings for analytics (corrected ownership)
+((SELECT user_id FROM "USER" WHERE username = 'alice'), 5, '2026-03-07 19:00:00', 'JJ演唱會A區票1張', 'Active', 'Sell', '{19}'),
+((SELECT user_id FROM "USER" WHERE username = 'bob'), 6, '2026-04-20 19:00:00', 'Hebe票券轉讓', 'Active', 'Sell', '{20}'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 7, '2026-05-01 14:00:00', '音樂節票2張', 'Active', 'Sell', '{11}'),
+((SELECT user_id FROM "USER" WHERE username = 'david'), 9, '2026-02-20 19:00:00', '周興哲演唱會', 'Active', 'Sell', '{12}'),
+((SELECT user_id FROM "USER" WHERE username = 'emma'), 10, '2026-03-21 19:00:00', 'LaLa演唱會票', 'Active', 'Sell', '{17}');
 
--- Exchange listings for testing
+-- Exchange listings for testing (corrected ownership)
 INSERT INTO listing (user_id, event_id, event_date, content, status, type, offered_ticket_ids) VALUES
-(1, 1, '2025-12-21 19:00:00', '五月天12/21 A區連號2張，想換12/27同場次VIP', 'Active', 'Exchange', '{1,2}'),
-(2, 4, '2025-12-25 19:00:00', '告五人聖誕場VIP票，想換五月天任一場', 'Active', 'Exchange', '{17}'),
-(6, 1, '2025-12-27 19:00:00', '五月天12/27 VIP區，想換周杰倫VIP票', 'Active', 'Exchange', '{15}'),
-(4, 2, '2026-01-17 19:30:00', '周杰倫VIP區，想換告五人聖誕場VIP', 'Active', 'Exchange', '{13}'),
-(3, 5, '2026-03-07 19:00:00', '林俊傑VIP票，換田馥甄演唱會票', 'Active', 'Exchange', '{21}');
+((SELECT user_id FROM "USER" WHERE username = 'alice'), 1, '2025-12-21 19:00:00', '五月天12/21 A區連號2張，想換12/27同場次VIP', 'Active', 'Exchange', '{1,2}'),
+((SELECT user_id FROM "USER" WHERE username = 'bob'), 4, '2025-12-25 19:00:00', '告五人票券，想換五月天任一場', 'Active', 'Exchange', '{3}'),
+((SELECT user_id FROM "USER" WHERE username = 'frank'), 1, '2025-12-27 19:00:00', '五月天票券，想換周杰倫票', 'Active', 'Exchange', '{18}'),
+((SELECT user_id FROM "USER" WHERE username = 'david'), 2, '2026-01-17 19:30:00', '周杰倫票券，想換告五人票', 'Active', 'Exchange', '{5}'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 5, '2026-03-07 19:00:00', '林俊傑票券，換田馥甄演唱會票', 'Active', 'Exchange', '{4}');
 
 -- =========================================================
 -- TRADES (交易)
@@ -267,52 +270,52 @@ INSERT INTO trade (listing_id, status, agreed_price, created_at) VALUES
 -- =========================================================
 INSERT INTO trade_participant (trade_id, user_id, role, confirmed, confirmed_at) VALUES
 -- Trade 1 (Completed)
-(1, 3, 'seller', TRUE, NOW() - INTERVAL '5 days'),
-(1, 5, 'buyer', TRUE, NOW() - INTERVAL '5 days'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'seller', TRUE, NOW() - INTERVAL '5 days'),
+(1, (SELECT user_id FROM "USER" WHERE username = 'emma'), 'buyer', TRUE, NOW() - INTERVAL '5 days'),
 -- Trade 2 (Pending - Alice selling)
-(2, 1, 'seller', TRUE, NOW() - INTERVAL '2 days'),
-(2, 6, 'buyer', FALSE, NULL),
+(2, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'seller', TRUE, NOW() - INTERVAL '2 days'),
+(2, (SELECT user_id FROM "USER" WHERE username = 'frank'), 'buyer', FALSE, NULL),
 -- Trade 3 (Pending - Bob selling)
-(3, 2, 'seller', TRUE, NOW() - INTERVAL '1 day'),
-(3, 4, 'buyer', FALSE, NULL),
+(3, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'seller', TRUE, NOW() - INTERVAL '1 day'),
+(3, (SELECT user_id FROM "USER" WHERE username = 'david'), 'buyer', FALSE, NULL),
 -- Trade 4 (Pending - Charlie selling VIP)
-(4, 3, 'seller', FALSE, NULL),
-(4, 1, 'buyer', TRUE, NOW() - INTERVAL '2 hours'),
+(4, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'seller', FALSE, NULL),
+(4, (SELECT user_id FROM "USER" WHERE username = 'alice'), 'buyer', TRUE, NOW() - INTERVAL '2 hours'),
 -- Trade 5 (Canceled)
-(5, 3, 'seller', FALSE, NULL),
-(5, 2, 'buyer', FALSE, NULL);
+(5, (SELECT user_id FROM "USER" WHERE username = 'charlie'), 'seller', FALSE, NULL),
+(5, (SELECT user_id FROM "USER" WHERE username = 'bob'), 'buyer', FALSE, NULL);
 
 -- =========================================================
 -- TRADE TICKETS (哪些票在交易中)
 -- =========================================================
 INSERT INTO trade_ticket (trade_id, ticket_id, from_user_id, to_user_id) VALUES
 -- Trade 1 (Completed - Charlie sold to Emma)
-(1, 4, 3, 5),
+(1, 4, (SELECT user_id FROM "USER" WHERE username = 'charlie'), (SELECT user_id FROM "USER" WHERE username = 'emma')),
 -- Trade 2 (Pending - Alice selling to Frank)
-(2, 1, 1, 6),
-(2, 2, 1, 6),
+(2, 1, (SELECT user_id FROM "USER" WHERE username = 'alice'), (SELECT user_id FROM "USER" WHERE username = 'frank')),
+(2, 2, (SELECT user_id FROM "USER" WHERE username = 'alice'), (SELECT user_id FROM "USER" WHERE username = 'frank')),
 -- Trade 3 (Pending - Bob selling to David)
-(3, 6, 2, 4),
-(3, 7, 2, 4),
+(3, 6, (SELECT user_id FROM "USER" WHERE username = 'bob'), (SELECT user_id FROM "USER" WHERE username = 'david')),
+(3, 7, (SELECT user_id FROM "USER" WHERE username = 'bob'), (SELECT user_id FROM "USER" WHERE username = 'david')),
 -- Trade 4 (Pending - Charlie selling to Alice)
-(4, 14, 3, 1);
+(4, 14, (SELECT user_id FROM "USER" WHERE username = 'charlie'), (SELECT user_id FROM "USER" WHERE username = 'alice'));
 
 -- =========================================================
 -- USER BALANCE LOG (completed trade history)
 -- =========================================================
 INSERT INTO user_balance_log (user_id, trade_id, change, reason, created_at) VALUES
 -- Trade 1 completed
-(3, 1, 2200, 'TRADE_PAYMENT', NOW() - INTERVAL '5 days'),
-(5, 1, -2200, 'TRADE_PAYMENT', NOW() - INTERVAL '5 days'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), 1, 2200, 'TRADE_PAYMENT', NOW() - INTERVAL '5 days'),
+((SELECT user_id FROM "USER" WHERE username = 'emma'), 1, -2200, 'TRADE_PAYMENT', NOW() - INTERVAL '5 days'),
 -- Initial balance adjustments
-(1, NULL, 15000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(2, NULL, 12000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(3, NULL, 8000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(4, NULL, 20000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(5, NULL, 5000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(6, NULL, 18000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(8, NULL, 50000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-(9, NULL, 30000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days');
+((SELECT user_id FROM "USER" WHERE username = 'alice'), NULL, 15000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'bob'), NULL, 12000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'charlie'), NULL, 8000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'david'), NULL, 20000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'emma'), NULL, 5000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'frank'), NULL, 18000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'admin'), NULL, 50000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
+((SELECT user_id FROM "USER" WHERE username = 'operator'), NULL, 30000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days');
 
 -- =========================================================
 -- Data validation
