@@ -63,34 +63,34 @@ export async function GET(
       [eventId]
     );
 
-    // Fetch ticket details for each listing with offered_ticket_ids
+    // Fetch ticket details for each listing using LISTING_TICKET junction table
     const listingsWithTickets = await Promise.all(
       listingsResult.rows.map(async (listing) => {
-        let offeredTickets = [];
+        const ticketsResult = await query(
+          `SELECT 
+            t.ticket_id,
+            t.seat_area,
+            t.seat_number,
+            t.price,
+            t.status
+           FROM listing_ticket lt
+           JOIN ticket t ON lt.ticket_id = t.ticket_id
+           WHERE lt.listing_id = $1
+           ORDER BY t.seat_area, t.seat_number`,
+          [listing.listing_id]
+        );
         
-        if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
-          const ticketsResult = await query(
-            `SELECT 
-              t.ticket_id,
-              t.seat_area,
-              t.seat_number,
-              t.price,
-              t.status
-             FROM ticket t
-             WHERE t.ticket_id = ANY($1)
-             ORDER BY t.seat_area, t.seat_number`,
-            [listing.offered_ticket_ids]
-          );
-          
-          offeredTickets = ticketsResult.rows.map(row => ({
-            ...row,
-            price: parseFloat(row.price),
-          }));
-        }
+        const offeredTickets = ticketsResult.rows.map(row => ({
+          ...row,
+          price: parseFloat(row.price),
+        }));
+        
+        const offeredTicketIds = ticketsResult.rows.map(row => row.ticket_id);
         
         return {
           ...listing,
           offered_tickets: offeredTickets,
+          offered_ticket_ids: offeredTicketIds, // For backward compatibility
         };
       })
     );
@@ -129,9 +129,9 @@ export async function PATCH(
       );
     }
 
-    if (!session.roles.includes('BusinessOperator') && !session.roles.includes('Admin')) {
+    if (!session.roles.includes('Operator')) {
       return NextResponse.json(
-        { error: 'Forbidden: Only business operators can update events' },
+        { error: 'Forbidden: Only operators can update events' },
         { status: 403 }
       );
     }
@@ -209,9 +209,9 @@ export async function DELETE(
       );
     }
 
-    if (!session.roles.includes('BusinessOperator') && !session.roles.includes('Admin')) {
+    if (!session.roles.includes('Operator')) {
       return NextResponse.json(
-        { error: 'Forbidden: Only business operators can delete events' },
+        { error: 'Forbidden: Only operators can delete events' },
         { status: 403 }
       );
     }

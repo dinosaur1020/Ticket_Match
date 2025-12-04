@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole('BusinessOperator');
+    await requireRole('Operator');
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');

@@ -63,34 +63,38 @@ export async function GET(request: NextRequest) {
     const countResult = await query(countSql, countParams);
     const total = parseInt(countResult.rows[0].total);
 
-    // Fetch ticket details for each listing with offered_ticket_ids
+    // Fetch ticket details for each listing using LISTING_TICKET junction table
     const listingsWithTickets = await Promise.all(
       result.rows.map(async (listing) => {
         let offeredTickets = [];
+        let offeredTicketIds = [];
         
-        if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
-          const ticketsResult = await query(
-            `SELECT 
-              t.ticket_id,
-              t.seat_area,
-              t.seat_number,
-              t.price,
-              t.status
-             FROM ticket t
-             WHERE t.ticket_id = ANY($1)
-             ORDER BY t.seat_area, t.seat_number`,
-            [listing.offered_ticket_ids]
-          );
-          
-          offeredTickets = ticketsResult.rows.map(row => ({
-            ...row,
-            price: parseFloat(row.price),
-          }));
-        }
+        // Query the junction table for offered tickets
+        const ticketsResult = await query(
+          `SELECT 
+            t.ticket_id,
+            t.seat_area,
+            t.seat_number,
+            t.price,
+            t.status
+           FROM listing_ticket lt
+           JOIN ticket t ON lt.ticket_id = t.ticket_id
+           WHERE lt.listing_id = $1
+           ORDER BY t.seat_area, t.seat_number`,
+          [listing.listing_id]
+        );
+        
+        offeredTickets = ticketsResult.rows.map(row => ({
+          ...row,
+          price: parseFloat(row.price),
+        }));
+        
+        offeredTicketIds = ticketsResult.rows.map(row => row.ticket_id);
         
         return {
           ...listing,
           offered_tickets: offeredTickets,
+          offered_ticket_ids: offeredTicketIds, // For backward compatibility
         };
       })
     );
@@ -181,16 +185,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Insert the listing
     const result = await query(
-      `INSERT INTO listing (user_id, event_id, event_date, content, type, status, offered_ticket_ids)
-       VALUES ($1, $2, $3, $4, $5, 'Active', $6)
+      `INSERT INTO listing (user_id, event_id, event_date, content, type, status)
+       VALUES ($1, $2, $3, $4, $5, 'Active')
        RETURNING *`,
-      [session.user_id, event_id, event_date, content || null, type, offered_ticket_ids || null]
+      [session.user_id, event_id, event_date, content || null, type]
     );
+
+    const newListing = result.rows[0];
+
+    // Insert offered tickets into LISTING_TICKET junction table
+    if (offered_ticket_ids && offered_ticket_ids.length > 0) {
+      const values = offered_ticket_ids.map((ticketId: number, index: number) => 
+        `($1, $${index + 2})`
+      ).join(', ');
+      
+      await query(
+        `INSERT INTO listing_ticket (listing_id, ticket_id) VALUES ${values}`,
+        [newListing.listing_id, ...offered_ticket_ids]
+      );
+    }
 
     return NextResponse.json({
       message: 'Listing created successfully',
-      listing: result.rows[0],
+      listing: newListing,
     }, { status: 201 });
 
   } catch (error) {

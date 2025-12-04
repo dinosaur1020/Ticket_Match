@@ -11,6 +11,7 @@ interface Event {
   description: string;
   performers: string[];
   session_count: number;
+  listing_count: number;
   earliest_date: string;
   latest_date: string;
 }
@@ -164,14 +165,26 @@ export default function EventsPage() {
                       </div>
                     )}
 
-                    {event.session_count > 0 && (
-                      <p className="text-sm text-gray-500">
-                        🗓️ {event.session_count} 場次
-                        {event.earliest_date && (
-                          <> • {formatDate(event.earliest_date)}</>
-                        )}
-                      </p>
-                    )}
+                    <div className="space-y-2">
+                      {event.session_count > 0 && (
+                        <p className="text-sm text-gray-500">
+                          🗓️ {event.session_count} 場次
+                          {event.earliest_date && (
+                            <> • {formatDate(event.earliest_date)}</>
+                          )}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          event.listing_count > 0
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          📋 {event.listing_count || 0} 個貼文
+                        </span>
+                      </div>
+                    </div>
                   </Link>
                 ))}
               </div>

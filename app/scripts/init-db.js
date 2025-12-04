@@ -62,7 +62,33 @@ async function initDatabase() {
         console.log(`🌱 Loading seed data from ${path.basename(seedPath)}...`);
         const seedData = fs.readFileSync(seedPath, 'utf-8');
         await client.query(seedData);
-        console.log('✅ Seed data loaded successfully\n');
+
+        // Reset sequences to match the maximum IDs in the data
+        console.log('🔄 Resetting sequences...');
+        const sequences = [
+          { seq: 'event_event_id_seq', table: 'event', column: 'event_id' },
+          { seq: 'eventtime_eventtime_id_seq', table: 'eventtime', column: 'eventtime_id' },
+          { seq: 'ticket_ticket_id_seq', table: 'ticket', column: 'ticket_id' },
+          { seq: 'listing_listing_id_seq', table: 'listing', column: 'listing_id' },
+          { seq: 'trade_trade_id_seq', table: 'trade', column: 'trade_id' },
+          { seq: 'user_balance_log_log_id_seq', table: 'user_balance_log', column: 'log_id' }
+        ];
+
+        for (const { seq, table, column } of sequences) {
+          try {
+            const result = await client.query(`SELECT MAX(${column}) as max_id FROM ${table}`);
+            const maxId = result.rows[0].max_id;
+            if (maxId) {
+              await client.query(`SELECT setval('${seq}', ${maxId})`);
+              console.log(`  ✅ Reset ${seq} to ${maxId}`);
+            }
+          } catch (err) {
+            // Ignore errors for tables that don't exist or are empty
+            console.log(`  ⚠️  Skipped ${seq}: ${err.message}`);
+          }
+        }
+
+        console.log('✅ Seed data loaded and sequences reset successfully\n');
       } else {
         console.warn(`⚠️  Seed data file not found: ${seedPath}, skipping...\n`);
       }

@@ -17,7 +17,12 @@
     "generate-data:custom": "python scripts/generate-fake-data.py --users 5000 --tickets 15000 --listings 18000 --yes",
     "generate-data:exact": "python scripts/generate-fake-data.py --users 3000 --events 300 --tickets 10000 --listings 12000 --trades 3000 --yes",
     "setup-demo": "npm run generate-data:test && npm run init-db && npm run init-db:seed test-data.sql",
-    "setup-full": "npm run generate-data:exact && npm run init-db && npm run init-db:seed generated-data.sql"
+    "setup-full": "npm run generate-data:exact && npm run init-db && npm run init-db:seed generated-data.sql",
+    "db:dump": "/Applications/Postgres.app/Contents/Versions/17/bin/pg_dump -h localhost -U postgres -d ticket_match -Fc > ticket_match_data.dump",
+    "db:dump:plain": "/Applications/Postgres.app/Contents/Versions/17/bin/pg_dump -h localhost -U postgres -d ticket_match --no-owner --no-privileges > ticket_match_data.sql",
+    "db:restore": "/Applications/Postgres.app/Contents/Versions/17/bin/pg_restore -h localhost -U postgres -d ticket_match --clean --if-exists ticket_match_data.dump",
+    "db:restore:plain": "/opt/homebrew/bin/psql -h localhost -U postgres -d ticket_match < ticket_match_data.sql",
+    "setup-dump": "npm run generate-data:exact && npm run init-db && npm run init-db:seed generated-data.sql && npm run db:dump"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

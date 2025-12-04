@@ -42,7 +42,34 @@ class TicketMatchDataGenerator:
         print(f"   👥 生成 {count} 個用戶...")
         users = []
 
-        for i in range(count):
+        # 先建立測試帳號
+        test_users = [
+            {'username': 'alice', 'email': 'alice@example.com', 'balance': 25000, 'role': 'User'},
+            {'username': 'bob', 'email': 'bob@example.com', 'balance': 30000, 'role': 'User'},
+            {'username': 'charlie', 'email': 'charlie@example.com', 'balance': 20000, 'role': 'User'},
+            {'username': 'david', 'email': 'david@example.com', 'balance': 45000, 'role': 'User'},
+            {'username': 'emma', 'email': 'emma@example.com', 'balance': 35000, 'role': 'User'},
+            {'username': 'frank', 'email': 'frank@example.com', 'balance': 28000, 'role': 'User'},
+            {'username': 'operator', 'email': 'operator@example.com', 'balance': 100000, 'role': 'Operator'},
+            {'username': 'admin', 'email': 'admin@example.com', 'balance': 100000, 'role': 'Operator'}
+        ]
+
+        # 建立測試帳號
+        for test_user in test_users:
+            user = {
+                'user_id': str(uuid.uuid4()),
+                'username': test_user['username'],
+                'password_hash': '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.',  # password123
+                'email': test_user['email'],
+                'status': 'Active',
+                'balance': test_user['balance'],
+                'created_at': self.fake.date_time_this_year()
+            }
+            users.append(user)
+
+        # 生成剩餘的隨機用戶
+        remaining_count = count - len(test_users)
+        for i in range(remaining_count):
             username = self.fake.user_name()
             # 確保用戶名唯一
             while any(u['username'] == username for u in users):
@@ -65,7 +92,41 @@ class TicketMatchDataGenerator:
             users.append(user)
 
         self.users = users
+        # Generate user roles
+        self.user_roles = self.generate_user_roles(users)
         return users
+
+    def generate_user_roles(self, users):
+        """生成用戶角色資料"""
+        print("   👤 生成用戶角色...")
+        user_roles = []
+
+        # 測試帳號角色對應
+        test_user_roles = {
+            'alice': 'User',
+            'bob': 'User',
+            'charlie': 'User',
+            'david': 'User',
+            'emma': 'User',
+            'frank': 'User',
+            'operator': 'Operator',
+            'admin': 'Operator'
+        }
+
+        for user in users:
+            # 測試帳號使用預設角色
+            if user['username'] in test_user_roles:
+                role = test_user_roles[user['username']]
+            else:
+                # 一般用戶：95% User, 5% Operator
+                role = random.choices(['User', 'Operator'], weights=[95, 5])[0]
+
+            user_roles.append({
+                'user_id': user['user_id'],
+                'role': role
+            })
+
+        return user_roles
 
     def generate_events_and_times(self, event_count=300, sessions_per_event=4):
         """生成活動和場次"""
@@ -138,45 +199,80 @@ class TicketMatchDataGenerator:
         print(f"   🎫 生成 {ticket_count} 張票券...")
         tickets = []
 
-        for i in range(ticket_count):
-            eventtime = self.fake.random_element(self.eventtimes)
-            owner = self.fake.random_element(self.users)
+        # Pre-calculate available seats per eventtime (limit to reasonable numbers)
+        eventtime_seats = {}
+        for et in self.eventtimes:
+            venue = next(v for v in VENUES if v['name'] == et['venue'])
+            max_seats = min(venue['capacity'], 300)  # Reduced to make it more manageable
+            eventtime_seats[et['eventtime_id']] = max_seats
 
-            # 找到對應的活動和場地資訊
+        total_available_seats = sum(eventtime_seats.values())
+
+        # Adjust ticket count if necessary
+        if ticket_count > total_available_seats:
+            print(f"⚠️  調整票券數量: {ticket_count} → {total_available_seats} (基於可用座位)")
+            ticket_count = total_available_seats
+
+        # Track used seats: eventtime_id -> set of (seat_area, seat_number)
+        used_seats = {et_id: set() for et_id in eventtime_seats.keys()}
+
+        for i in range(ticket_count):
+            # Find eventtimes that still have available seats
+            available_eventtimes = [et for et in self.eventtimes
+                                  if len(used_seats[et['eventtime_id']]) < eventtime_seats[et['eventtime_id']]]
+
+            if not available_eventtimes:
+                print(f"⚠️  警告: 無法為票券 {i+1} 生成唯一座位，跳過")
+                continue
+
+            # Select random eventtime
+            eventtime = self.fake.random_element(available_eventtimes)
+            eventtime_id = eventtime['eventtime_id']
+
+            # Find corresponding event and venue
             event = next(e for e in self.events if e['event_id'] == eventtime['event_id'])
             venue = next(v for v in VENUES if v['name'] == eventtime['venue'])
 
-            # 決定座位區域（根據場地類型）
-            if venue['capacity'] > 10000:  # 大場地
-                area_weights = [('A區', 25), ('B區', 30), ('C區', 30), ('VIP區', 15)]
-            elif venue['capacity'] > 5000:  # 中場地
-                area_weights = [('A區', 35), ('B區', 35), ('C區', 25), ('VIP區', 5)]
-            else:  # 小場地
-                area_weights = [('A區', 40), ('B區', 35), ('C區', 20), ('一般區', 5)]
+            # Generate unique seat
+            while True:
+                # Determine seat area based on venue capacity
+                if venue['capacity'] > 10000:  # Large venue
+                    seat_area = self.fake.random_element(['A區', 'B區', 'C區', 'VIP區'])
+                elif venue['capacity'] > 5000:  # Medium venue
+                    seat_area = self.fake.random_element(['A區', 'B區', 'C區'])
+                else:  # Small venue
+                    seat_area = self.fake.random_element(['A區', 'B區', '一般區'])
 
-            area = random.choices([item[0] for item in area_weights],
-                                 weights=[item[1] for item in area_weights])[0]
-            min_price, max_price = PRICE_RANGES[area]
+                seat_number = self.fake.random_int(min=1, max=150)  # Reasonable seat numbers
 
-            # 根據活動的價格倍率調整
-            adjusted_min = int(min_price * event['price_multiplier'])
-            adjusted_max = int(max_price * event['price_multiplier'])
+                seat_key = (seat_area, seat_number)
+                if seat_key not in used_seats[eventtime_id]:
+                    used_seats[eventtime_id].add(seat_key)
+                    break
 
-            ticket = {
-                'ticket_id': self.next_ids['ticket_id'],
-                'eventtime_id': eventtime['eventtime_id'],
+            # Select random owner
+            owner = self.fake.random_element(self.users)
+
+            ticket_id = self.next_ids['ticket_id']
+            # Select random price from available ranges
+            price = self.fake.random_int(min=1200, max=12000)
+            status = self.fake.random_element(['Active', 'Locked', 'Completed', 'Expired', 'Canceled'])
+            created_at = self.fake.date_time_between(start_date='-1y', end_date='now')
+
+            tickets.append({
+                'ticket_id': ticket_id,
+                'eventtime_id': eventtime_id,
                 'owner_id': owner['user_id'],
-                'seat_area': area,
-                'seat_number': self._generate_seat_number(area, venue['capacity']),
-                'price': self.fake.random_int(adjusted_min, adjusted_max),
-                'status': 'Active',
-                'created_at': self.fake.date_time_this_month()
-            }
-            tickets.append(ticket)
+                'price': price,
+                'seat_area': seat_area,
+                'seat_number': seat_number,
+                'status': status,
+                'created_at': created_at
+            })
             self.next_ids['ticket_id'] += 1
 
         self.tickets = tickets
-        return tickets
+        print(f"   ✅ {len(self.tickets)} 張票券生成完畢。")
 
     def _generate_seat_number(self, area, venue_capacity):
         """生成座位號碼"""
@@ -518,6 +614,7 @@ class TicketMatchDataGenerator:
 
             # 寫入所有INSERT語句
             self._write_users_sql(f)
+            self._write_user_roles_sql(f)
             self._write_events_sql(f)
             self._write_eventtimes_sql(f)
             self._write_tickets_sql(f)
@@ -527,7 +624,7 @@ class TicketMatchDataGenerator:
             self._write_trade_tickets_sql(f)
             self._write_balance_logs_sql(f)
 
-            print(f"✅ 資料匯出完成！共 {len(self.users) + len(self.events) + len(self.eventtimes) + len(self.tickets) + len(self.listings) + len(self.trades) + len(self.trade_participants) + len(self.trade_tickets) + len(self.balance_logs)} 筆記錄")
+            print(f"✅ 資料匯出完成！共 {len(self.users) + len(self.user_roles) + len(self.events) + len(self.eventtimes) + len(self.tickets) + len(self.listings) + len(self.trades) + len(self.trade_participants) + len(self.trade_tickets) + len(self.balance_logs)} 筆記錄")
 
     def _write_users_sql(self, f):
         """寫入用戶SQL - 使用批量INSERT"""
@@ -542,6 +639,19 @@ class TicketMatchDataGenerator:
             f.write(f"""('{user['user_id']}', '{user['username']}', '{user['password_hash']}',
         '{user['email']}', '{user['status']}', {user['balance']},
         '{user['created_at'].isoformat()}'){comma}\n""")
+        f.write("\n")
+
+    def _write_user_roles_sql(self, f):
+        """寫入用戶角色SQL - 使用批量INSERT"""
+        if not self.user_roles:
+            return
+
+        f.write("-- User Roles\n")
+        f.write("INSERT INTO user_role (user_id, role) VALUES\n")
+
+        for i, user_role in enumerate(self.user_roles):
+            comma = ',' if i < len(self.user_roles) - 1 else ';'
+            f.write(f"""('{user_role['user_id']}', '{user_role['role']}'){comma}\n""")
         f.write("\n")
 
     def _write_events_sql(self, f):
@@ -597,16 +707,34 @@ class TicketMatchDataGenerator:
         f.write("INSERT INTO listing (listing_id, user_id, event_id, event_date, content, status, type, offered_ticket_ids, created_at) VALUES\n")
 
         for i, listing in enumerate(self.listings):
-            offered_tickets_str = "NULL"
-            if listing['offered_ticket_ids']:
-                offered_tickets_str = f"ARRAY{listing['offered_ticket_ids']}"
-
             comma = ',' if i < len(self.listings) - 1 else ';'
+            # Handle offered_ticket_ids array
+            offered_ids = listing['offered_ticket_ids']
+            if offered_ids:
+                offered_str = f"ARRAY{offered_ids}"
+            else:
+                offered_str = "NULL"
+
             f.write(f"""({listing['listing_id']}, '{listing['user_id']}', {listing['event_id']},
         '{listing['event_date'].isoformat()}', '{listing['content']}',
-        '{listing['status']}', '{listing['type']}', {offered_tickets_str},
-        '{listing['created_at'].isoformat()}'){comma}\n""")
+        '{listing['status']}', '{listing['type']}',
+        {offered_str}, '{listing['created_at'].isoformat()}'){comma}\n""")
         f.write("\n")
+        
+        # Write LISTING_TICKET junction table entries
+        f.write("-- Listing Tickets (Junction Table)\n")
+        listing_ticket_entries = []
+        for listing in self.listings:
+            if listing['offered_ticket_ids']:
+                for ticket_id in listing['offered_ticket_ids']:
+                    listing_ticket_entries.append((listing['listing_id'], ticket_id))
+        
+        if listing_ticket_entries:
+            f.write("INSERT INTO listing_ticket (listing_id, ticket_id) VALUES\n")
+            for i, (listing_id, ticket_id) in enumerate(listing_ticket_entries):
+                comma = ',' if i < len(listing_ticket_entries) - 1 else ';'
+                f.write(f"({listing_id}, {ticket_id}){comma}\n")
+            f.write("\n")
 
     def _write_trades_sql(self, f):
         """寫入交易SQL - 使用批量INSERT"""

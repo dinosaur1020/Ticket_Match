@@ -27,12 +27,14 @@ export async function GET(request: NextRequest) {
         e.venue,
         e.description,
         COUNT(DISTINCT et.eventtime_id) as session_count,
+        COUNT(DISTINCT CASE WHEN l.status = 'Active' THEN l.listing_id END) as listing_count,
         MIN(et.start_time) as earliest_date,
         MAX(et.start_time) as latest_date,
         array_agg(DISTINCT ep.performer) as performers
       FROM event e
       LEFT JOIN eventtime et ON e.event_id = et.event_id
       LEFT JOIN event_performer ep ON e.event_id = ep.event_id
+      LEFT JOIN listing l ON e.event_id = l.event_id
     `;
 
     const params: any[] = [];
@@ -93,10 +95,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has BusinessOperator role
-    if (!session.roles.includes('BusinessOperator') && !session.roles.includes('Admin')) {
+    // Check if user has Operator role
+    if (!session.roles.includes('Operator')) {
       return NextResponse.json(
-        { error: 'Forbidden: Only business operators can create events' },
+        { error: 'Forbidden: Only operators can create events' },
         { status: 403 }
       );
     }

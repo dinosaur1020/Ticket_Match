@@ -4,6 +4,12 @@
 
 一個完整的票券交易撮合平台，提供使用者售票、收票與換票功能，支援多人併行操作與完整交易管理。
 
+## ⚡ 隊友快速設定
+
+**🚀 如果你是團隊成員，請直接參考：[隊友資料匯入指南](#-隊友資料匯入指南)**
+
+**📁 需要：** `ticket_match_data.dump` 檔案 (從專案負責人取得)
+
 ## 🎯 專案特色
 
 - ✅ **完整的 Client-Server 架構**：Next.js 14+ (React + TypeScript)
@@ -63,7 +69,15 @@ docker run --name mongodb-ticket -p 27017:27017 -d mongo:6
 - MongoDB 6+
 - npm 或 yarn
 
-## 🚀 快速開始
+## 🚀 快速開始 - 隊友設定指南
+
+### ⚠️ **重要：隊友請使用此指南！**
+
+**如果你是團隊成員，請跳過下面的開發者設定，直接參考 [隊友資料匯入指南](#-隊友資料匯入指南)。**
+
+---
+
+## 🛠️ 開發者完整設定指南
 
 ### 1. 環境設定
 
@@ -100,52 +114,208 @@ SESSION_SECRET=your-random-secret-at-least-32-characters-long
 
 ```bash
 # 建立 PostgreSQL 資料庫（如果尚未建立）
-# 注意：如果使用 Docker，資料庫已在容器中建立
 createdb ticket_match
 
-# 執行 schema 和 seed data
-node scripts/init-db.js --seed
-```
-
-如果成功，你會看到：
-```
-✅ Schema applied successfully
-✅ Seed data loaded successfully
-📊 Database Statistics:
-  user: 9 rows
-  event: 15 rows
-  ticket: 43 rows
-  listing: 23 rows
-  ...
-```
-
-**建立 MongoDB 索引以解鎖完整分析功能：**
-
-```bash
-# 建立 MongoDB 索引（解鎖瀏覽分析、搜尋關鍵字等功能）
-node scripts/init-mongodb-indexes.js
+# 初始化資料庫結構
+npm run init-db
 ```
 
 ### 3. 生成測試資料
 
-**重要：** 為了確保所有團隊成員獲得相同的測試資料，請按以下步驟操作：
+**生成完整規模的測試資料 (10,000張票券，59,000+筆記錄)：**
 
 ```bash
-# 生成完整規模的測試資料 (10,000張票券，59,000+筆記錄)
 npm run generate-data:exact
-
-# 或生成小規模測試資料 (快速測試用)
-npm run generate-data:test
 ```
 
-**資料特性：**
-- 🎫 **10,000張票券** - 滿足課程"上萬筆資料"要求
-- 👥 **3,000個用戶** - 活躍用戶基礎
-- 🎪 **300個活動** - 多元台灣藝人活動
-- 📝 **24,000個貼文** - Buy:Sell:Exchange 合理比例
-- 🤝 **3,000筆交易** - 完整交易生態
+**或建立完整資料傾印供隊友使用：**
+
+```bash
+npm run setup-dump
+```
+
+---
+
+## 📥 隊友資料匯入指南
+
+### 🎯 **隊友專用：獲得與團隊完全相同資料的步驟**
+
+**前置條件：** 確保 PostgreSQL 和 MongoDB 已安裝並啟動。
+
+```bash
+# 1. 克隆專案並進入目錄
+git clone <repository-url>
+cd Ticket_Match-1/app
+
+# 2. 安裝依賴
+npm install
+
+# 3. 複製環境變數範例並修改
+cp ".env copy.example" .env.local
+```
+
+編輯 `.env.local` 設定你的資料庫連線：
+
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=ticket_match
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+
+MONGODB_URI=mongodb://localhost:27017/ticket_match
+SESSION_SECRET=your-random-secret-at-least-32-characters-long
+```
+
+```bash
+# 4. 建立 PostgreSQL 資料庫
+createdb ticket_match
+
+# 5. 初始化資料庫結構
+npm run init-db
+
+# 6. 從專案負責人取得 ticket_match_data.dump 檔案
+# 將檔案放置在專案根目錄 (Ticket_Match-1/app/)
+
+# 7. 匯入完整測試資料
+npm run db:restore
+
+# 8. 建立 MongoDB 索引（解鎖完整分析功能）
+npm run init-mongo-indexes
+
+# 9. 啟動應用程式
+npm run dev
+```
+
+**✅ 成功後，你會看到：**
+```
+📊 Database Statistics:
+  USER: 3000 rows
+  user_role: 3000 rows
+  event: 300 rows
+  ticket: 10000 rows
+  listing: 24000 rows
+  trade: 3000 rows
+```
+
+### 🔑 測試帳號
+
+系統已預先建立以下測試帳號，你可以直接使用：
+
+#### 營運者帳號 (Operator)
+- `operator` / `password123` - 業務經營者 ($100,000餘額)
+- `admin` / `password123` - 管理員 ($100,000餘額)
+
+#### 一般使用者帳號 (User)
+- `alice` / `password123` - 熱門票券持有者 ($25,000餘額)
+- `bob` / `password123` - 活躍交易者 ($30,000餘額)
+- `charlie` / `password123` - 多筆交易參與者 ($20,000餘額)
+- `david` / `password123` - 高價票券持有者 ($45,000餘額)
+- `emma` / `password123` - VIP票券持有者 ($35,000餘額)
+- `frank` / `password123` - 活躍交易者 ($28,000餘額)
+
+**🚀 現在就可以開啟瀏覽器訪問：http://localhost:3000**
+
+---
+
+## 🔧 疑難排解
+
+### PostgreSQL 連線問題
+```bash
+# 檢查 PostgreSQL 是否啟動
+brew services list | grep postgresql
+
+# 如果沒有啟動
+brew services start postgresql
+
+# 檢查資料庫是否存在
+psql -l | grep ticket_match
+
+# 如果不存在，建立資料庫
+createdb ticket_match
+```
+
+### MongoDB 連線問題
+```bash
+# 檢查 MongoDB 是否啟動
+brew services list | grep mongodb
+
+# 如果沒有啟動
+brew services start mongodb-community
+
+# 測試連線
+mongosh --eval "db.adminCommand('ismaster')"
+```
+
+### 傾印檔案匯入失敗
+```bash
+# 確保資料庫為空
+npm run init-db
+
+# 檢查傾印檔案是否存在
+ls -la ticket_match_data.dump
+
+# 如果檔案損壞，請向專案負責人重新取得
+```
+
+### 無法登入測試帳號
+- 確認已正確匯入 `ticket_match_data.dump`
+- 檢查 `.env.local` 中的 SESSION_SECRET 是否設定
+- 確認密碼為 `password123` (全小寫)
+
+### 重複鍵值錯誤 (duplicate key value violates unique constraint)
+- 這通常發生在重新匯入資料時
+- 解決方案：重新執行 `npm run init-db` 清除資料庫，然後 `npm run db:restore`
+- 資料匯入過程會自動重設序列，避免 ID 衝突
+
+### 常用 npm 指令
+```bash
+npm run init-db           # 初始化資料庫結構
+npm run db:restore        # 從傾印檔案恢復資料
+npm run init-mongo-indexes # 建立 MongoDB 索引
+npm run dev               # 啟動開發伺服器
+npm run generate-data:exact # 生成完整測試資料
+npm run setup-dump        # 生成資料並建立傾印
+```
+
+**完整測試資料特性：**
+- 🎫 **10,000張票券** - 滿足課程"上萬筆資料"要求 ⭐
+- 👥 **3,000個用戶** - 包含 8個預設測試帳號 + 隨機生成用戶
+- 👤 **用戶角色系統** - User: 2,834個, Operator: 166個
+- 🎪 **300個活動** - 多元台灣藝人活動 (周杰倫、五月天、林俊傑等)
+- 🕒 **1,200個場次** - 每個活動平均4場次
+- 📝 **24,000個貼文** - Buy:Sell:Exchange = 14:5:3 比例
+- 🤝 **3,000筆交易** - 完整交易生態 + 參與者記錄
+- 💰 **9,000筆餘額記錄** - 完整的資金流轉追蹤
 - ✅ **固定種子 (42)** - **確保所有團隊成員獲得完全相同的資料**
 - 🔄 **可重現生成** - 運行相同命令會產生完全相同的資料
+
+## 💾 資料傾印說明
+
+**開發者專用：** 如果需要重新生成資料傾印：
+
+```bash
+# 生成完整資料並建立傾印檔案
+npm run setup-dump
+
+# 產生的 ticket_match_data.dump 檔案會自動建立
+```
+
+**檔案資訊：**
+- **大小：** ~2.3MB (壓縮 85%+)
+- **內容：** 完整測試資料 + 預設測試帳號
+- **恢復速度：** 快 3-5 倍於 SQL 文字檔
+- **資料規模：** 59,525筆記錄，包含 10,000張票券
+
+**替代方案：**
+```bash
+# 建立純文字 SQL dump
+npm run db:dump:plain
+
+# 隊友使用：
+npm run init-db
+npm run db:restore:plain
+```
 
 ### 4. 匯入測試資料
 
@@ -165,20 +335,34 @@ npm run dev
 
 開啟瀏覽器訪問：http://localhost:3000
 
-## 👤 測試帳號
+## 👤 測試帳號詳細資訊
 
-系統預設提供以下測試帳號（密碼皆為 `password123`）：
+### 🔑 快速登入
 
-**一般使用者：**
-- `alice` - 擁有多張票券
-- `bob` - 擁有多張票券
-- `charlie` - 擁有多張票券
+**所有測試帳號密碼皆為：`password123`**
 
-**業務經營者：**
-- `operator` - 可建立活動、管理使用者
+### 👥 一般使用者帳號 (User 角色)
+用於測試買賣票券、交易等基本功能：
 
-**管理員：**
-- `admin` - 完整管理權限
+- `alice` - 熱門票券持有者 (五月天、周杰倫等) - $25,000餘額
+- `bob` - 活躍交易者 (多張演唱會票券) - $30,000餘額
+- `charlie` - 多筆交易參與者 - $20,000餘額
+- `david` - 高價票券持有者 (林俊傑等) - $45,000餘額
+- `emma` - VIP票券持有者 (金曲獎等) - $35,000餘額
+- `frank` - 活躍交易者 - $28,000餘額
+
+### 🛠️ 營運者帳號 (Operator 角色)
+用於測試管理功能：
+
+- `operator` - 業務經營者 - $100,000餘額
+- `admin` - 管理員 - $100,000餘額
+
+**權限包括：** 建立活動、管理使用者、查看統計資料、存取後台管理
+
+### 💡 測試建議
+- **一般功能測試：** 使用 `alice`、`bob`、`charlie`
+- **管理功能測試：** 使用 `operator` 或 `admin`
+- **交易測試：** 開啟多個瀏覽器視窗，分別登入不同帳號
 
 ## 🎭 功能展示
 

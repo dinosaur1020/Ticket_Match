@@ -56,21 +56,22 @@ async function checkDataIntegrity() {
     // 2. 檢查業務邏輯完整性
     console.log('\n2. 檢查業務邏輯完整性:');
 
-    // 檢查是否有貼文提供不屬於該使用者的票券
+    // 檢查是否有貼文提供不屬於該使用者的票券 (使用 LISTING_TICKET 表)
     const invalidListings = await client.query(`
       SELECT
         l.listing_id,
         l.user_id,
         u.username,
-        l.offered_ticket_ids,
+        array_agg(lt.ticket_id) as offered_ticket_ids,
         array_agg(t.ticket_id) as owned_ticket_ids,
         array_agg(t.owner_id) as ticket_owners
       FROM listing l
       JOIN "USER" u ON l.user_id = u.user_id
-      LEFT JOIN ticket t ON t.ticket_id = ANY(l.offered_ticket_ids)
-      WHERE l.offered_ticket_ids IS NOT NULL
-        AND l.status = 'Active'
-      GROUP BY l.listing_id, l.user_id, u.username, l.offered_ticket_ids
+      LEFT JOIN listing_ticket lt ON l.listing_id = lt.listing_id
+      LEFT JOIN ticket t ON lt.ticket_id = t.ticket_id
+      WHERE l.status = 'Active'
+        AND lt.ticket_id IS NOT NULL
+      GROUP BY l.listing_id, l.user_id, u.username
       HAVING array_agg(DISTINCT t.owner_id) FILTER (WHERE t.owner_id != l.user_id) IS NOT NULL
     `);
 
@@ -78,7 +79,7 @@ async function checkDataIntegrity() {
       console.log('   ❌ 發現無效貼文 (使用者提供不屬於自己的票券):', invalidListings.rows.length);
       invalidListings.rows.forEach(row => {
         console.log(`      - 貼文 ${row.listing_id} 由 ${row.username} (用戶 ${row.user_id}) 建立:`);
-        console.log(`        提供票券: [${row.offered_ticket_ids}]`);
+        console.log(`        提供票券: [${row.offered_ticket_ids.filter(id => id !== null) || []}]`);
         console.log(`        實際擁有票券: [${row.owned_ticket_ids.filter(id => id !== null) || []}]`);
         console.log(`        票券所有者: [${row.ticket_owners.filter(owner => owner !== null) || []}]`);
       });

@@ -94,6 +94,28 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCancelTrade = async (tradeId: number) => {
+    if (!confirm('確定要取消此交易嗎？您的票券將被解鎖。')) return;
+
+    try {
+      const response = await fetch(`/api/trades/${tradeId}/cancel`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.message);
+        await fetchData();
+        await refreshUser();
+      } else {
+        alert(data.error || '取消交易失敗');
+      }
+    } catch (error) {
+      console.error('Failed to cancel trade:', error);
+      alert('取消交易失敗');
+    }
+  };
+
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('zh-TW', {
       year: 'numeric',
@@ -392,20 +414,31 @@ export default function DashboardPage() {
                             </div>
                           </div>
 
-                          {/* Action Button */}
-                          {trade.status === 'Pending' && !trade.my_confirmed && (
-                            <button
-                              onClick={() => handleConfirmTrade(trade.trade_id)}
-                              className="w-full bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold"
-                            >
-                              確認交易
-                            </button>
-                          )}
+                          {/* Action Buttons */}
+                          {trade.status === 'Pending' && (
+                            <div className="space-y-2">
+                              {!trade.my_confirmed && (
+                                <button
+                                  onClick={() => handleConfirmTrade(trade.trade_id)}
+                                  className="w-full bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold"
+                                >
+                                  確認交易
+                                </button>
+                              )}
 
-                          {trade.status === 'Pending' && trade.my_confirmed && (
-                            <p className="text-center text-sm text-gray-600 py-2">
-                              等待對方確認...
-                            </p>
+                              {trade.my_confirmed && (
+                                <p className="text-center text-sm text-gray-600 py-2">
+                                  等待對方確認...
+                                </p>
+                              )}
+
+                              <button
+                                onClick={() => handleCancelTrade(trade.trade_id)}
+                                className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition font-semibold"
+                              >
+                                取消交易
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}

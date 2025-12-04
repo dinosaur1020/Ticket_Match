@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, loading, isBusinessOperator } = useAuth();
+  const { user, logout, loading, isOperator } = useAuth();
 
   const handleLogout = async () => {
     await logout();
@@ -59,7 +59,7 @@ export default function Navigation() {
                 >
                   個人管理
                 </Link>
-                {isBusinessOperator && (
+                {isOperator && (
                   <Link
                     href="/admin"
                     className={`hover:text-blue-200 transition ${

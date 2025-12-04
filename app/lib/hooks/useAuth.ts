@@ -91,7 +91,7 @@ export function useAuth() {
     logout,
     refreshUser,
     isAuthenticated: !!user,
-    isBusinessOperator: user?.roles?.includes('BusinessOperator') || user?.roles?.includes('Admin'),
+    isOperator: user?.roles?.includes('Operator'),
   };
 }
 

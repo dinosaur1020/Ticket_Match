@@ -33,6 +33,9 @@ export default function ListingDetailPage() {
   const [agreedPrice, setAgreedPrice] = useState('');
   const [selectedTickets, setSelectedTickets] = useState<number[]>([]);
   const [myTickets, setMyTickets] = useState<any[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editStatus, setEditStatus] = useState('');
 
   useEffect(() => {
     fetchListingDetail();
@@ -49,6 +52,8 @@ export default function ListingDetailPage() {
       
       if (response.ok) {
         setListing(data.listing);
+        setEditContent(data.listing.content || '');
+        setEditStatus(data.listing.status);
       } else {
         console.error('Failed to fetch listing:', data.error);
       }
@@ -157,6 +162,66 @@ export default function ListingDetailPage() {
     );
   };
 
+  const handleUpdateListing = async () => {
+    if (!listing) return;
+
+    try {
+      const response = await fetch(`/api/listings/${listing.listing_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editContent,
+          status: editStatus,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('貼文更新成功！');
+        setIsEditing(false);
+        fetchListingDetail(); // Refresh the listing
+      } else {
+        alert(data.error || '更新失敗');
+      }
+    } catch (error) {
+      console.error('Failed to update listing:', error);
+      alert('更新失敗');
+    }
+  };
+
+  const handleDeleteListing = async () => {
+    if (!listing) return;
+
+    if (!confirm('確定要刪除此貼文嗎？此操作無法復原。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/listings/${listing.listing_id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('貼文已刪除');
+        router.push('/listings');
+      } else {
+        alert(data.error || '刪除失敗');
+      }
+    } catch (error) {
+      console.error('Failed to delete listing:', error);
+      alert('刪除失敗');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(listing?.content || '');
+    setEditStatus(listing?.status || '');
+  };
+
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('zh-TW', {
       year: 'numeric',
@@ -209,27 +274,47 @@ export default function ListingDetailPage() {
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           {/* Listing Header */}
           <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <span
-                className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                  listing.type === 'Sell'
-                    ? 'bg-green-100 text-green-700'
-                    : listing.type === 'Buy'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-orange-100 text-orange-700'
-                }`}
-              >
-                {listing.type === 'Sell' ? '售票' : listing.type === 'Buy' ? '收票' : '換票'}
-              </span>
-              <span
-                className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                  listing.status === 'Active'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                {listing.status}
-              </span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                    listing.type === 'Sell'
+                      ? 'bg-green-100 text-green-700'
+                      : listing.type === 'Buy'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-orange-100 text-orange-700'
+                  }`}
+                >
+                  {listing.type === 'Sell' ? '售票' : listing.type === 'Buy' ? '收票' : '換票'}
+                </span>
+                <span
+                  className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                    listing.status === 'Active'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {listing.status}
+                </span>
+              </div>
+
+              {/* Edit/Delete Buttons for Owner */}
+              {isOwnListing && listing.status !== 'Completed' && !isEditing && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+                  >
+                    編輯
+                  </button>
+                  <button
+                    onClick={handleDeleteListing}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold"
+                  >
+                    刪除
+                  </button>
+                </div>
+              )}
             </div>
 
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -257,11 +342,67 @@ export default function ListingDetailPage() {
               </div>
             )}
 
-            {listing.content && (
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h3 className="font-semibold text-gray-900 mb-2">貼文內容：</h3>
-                <p className="text-gray-700 whitespace-pre-wrap">{listing.content}</p>
+            {/* Edit Mode */}
+            {isEditing && isOwnListing ? (
+              <div className="mt-6 space-y-4">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-4 text-lg">編輯貼文</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        貼文內容
+                      </label>
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-gray-900"
+                        rows={4}
+                        placeholder="輸入貼文內容..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        狀態
+                      </label>
+                      <select
+                        value={editStatus}
+                        onChange={(e) => setEditStatus(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-gray-900"
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Canceled">Canceled</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        將狀態改為「Canceled」會讓貼文不再顯示在列表中
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateListing}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
+                      >
+                        儲存變更
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-semibold"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
+            ) : (
+              listing.content && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="font-semibold text-gray-900 mb-2">貼文內容：</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{listing.content}</p>
+                </div>
+              )
             )}
 
             {/* Display Offered Tickets */}
@@ -317,7 +458,7 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Trade Initiation Section */}
-          {user && !isOwnListing && listing.status === 'Active' && (
+          {user && !isOwnListing && listing.status === 'Active' && !isEditing && (
             <div className="bg-white rounded-xl shadow-lg p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">發起交易</h2>
 
@@ -489,13 +630,14 @@ export default function ListingDetailPage() {
             </div>
           )}
 
-          {isOwnListing && (
+          {isOwnListing && !isEditing && listing.status === 'Active' && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
               <p className="text-yellow-800">這是您自己的貼文，無法與自己交易</p>
+              <p className="text-yellow-700 text-sm mt-2">使用上方的「編輯」或「刪除」按鈕來管理您的貼文</p>
             </div>
           )}
 
-          {!user && listing.status === 'Active' && (
+          {!user && listing.status === 'Active' && !isEditing && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
               <p className="text-blue-800 mb-4">請先登入以發起交易</p>
               <button

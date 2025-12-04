@@ -61,6 +61,30 @@ export async function POST(
         [tradeId, session.user_id]
       );
 
+      // Immediately lock the tickets this user is offering in the trade
+      const userTicketsResult = await client.query(
+        `SELECT ticket_id FROM trade_ticket
+         WHERE trade_id = $1 AND from_user_id = $2`,
+        [tradeId, session.user_id]
+      );
+
+      // Lock user's tickets immediately upon confirmation
+      for (const ticketRow of userTicketsResult.rows) {
+        const lockResult = await client.query(
+          `UPDATE ticket
+           SET status = 'Locked'
+           WHERE ticket_id = $1 AND owner_id = $2 AND status = 'Active'
+           RETURNING ticket_id`,
+          [ticketRow.ticket_id, session.user_id]
+        );
+
+        if (lockResult.rowCount === 0) {
+          throw new Error(
+            `Ticket ${ticketRow.ticket_id} is no longer available (may have been traded concurrently)`
+          );
+        }
+      }
+
       // Check if all participants have confirmed
       const allParticipantsResult = await client.query(
         `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE confirmed = TRUE) as confirmed_count
@@ -80,24 +104,29 @@ export async function POST(
           [tradeId]
         );
 
-        // Lock and transfer tickets with concurrency control
+        // Transfer tickets (they should already be locked from when users confirmed)
         for (const ticketRow of ticketsResult.rows) {
-          const lockResult = await client.query(
-            `UPDATE ticket
-             SET status = 'Locked'
-             WHERE ticket_id = $1 AND owner_id = $2 AND status = 'Active'
-             RETURNING ticket_id`,
-            [ticketRow.ticket_id, ticketRow.from_user_id]
+          // Verify ticket is still locked and owned by the correct user
+          const ticketCheckResult = await client.query(
+            `SELECT status, owner_id FROM ticket WHERE ticket_id = $1`,
+            [ticketRow.ticket_id]
           );
 
-          // Check if ticket was successfully locked
-          if (lockResult.rowCount === 0) {
-            throw new Error(
-              `Ticket ${ticketRow.ticket_id} is no longer available (may have been traded concurrently)`
-            );
+          if (ticketCheckResult.rows.length === 0) {
+            throw new Error(`Ticket ${ticketRow.ticket_id} not found`);
           }
 
-          // Transfer ownership
+          const ticket = ticketCheckResult.rows[0];
+
+          if (ticket.owner_id !== ticketRow.from_user_id) {
+            throw new Error(`Ticket ${ticketRow.ticket_id} ownership changed unexpectedly`);
+          }
+
+          if (ticket.status !== 'Locked') {
+            throw new Error(`Ticket ${ticketRow.ticket_id} is not in locked state (status: ${ticket.status})`);
+          }
+
+          // Transfer ownership and mark as completed
           await client.query(
             `UPDATE ticket
              SET owner_id = $1, status = 'Completed'

@@ -6,7 +6,7 @@ import Navigation from '@/components/Navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function AdminPage() {
-  const { user, loading: authLoading, isBusinessOperator } = useAuth();
+  const { user, loading: authLoading, isOperator } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'events' | 'listings'>('events');
   const [listings, setListings] = useState<any[]>([]);
@@ -25,17 +25,17 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
-    } else if (!authLoading && user && !isBusinessOperator) {
+    } else if (!authLoading && user && !isOperator) {
       alert('您沒有權限訪問此頁面');
       router.push('/');
     }
-  }, [user, authLoading, isBusinessOperator, router]);
+  }, [user, authLoading, isOperator, router]);
 
   useEffect(() => {
-    if (user && isBusinessOperator && activeTab === 'listings') {
+    if (user && isOperator && activeTab === 'listings') {
       fetchListings();
     }
-  }, [user, isBusinessOperator, activeTab]);
+  }, [user, isOperator, activeTab]);
 
   const fetchListings = async () => {
     setLoading(true);
@@ -152,7 +152,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || !user || !isBusinessOperator) {
+  if (authLoading || !user || !isOperator) {
     return null;
   }
 

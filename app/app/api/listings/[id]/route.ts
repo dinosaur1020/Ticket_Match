@@ -52,33 +52,35 @@ export async function GET(
 
     const listing = result.rows[0];
 
-    // If listing has offered tickets, fetch ticket details
-    let offeredTickets = [];
-    if (listing.offered_ticket_ids && listing.offered_ticket_ids.length > 0) {
-      const ticketsResult = await query(
-        `SELECT 
-          t.*,
-          e.event_name,
-          e.venue,
-          et.start_time,
-          et.end_time
-         FROM ticket t
-         JOIN eventtime et ON t.eventtime_id = et.eventtime_id
-         JOIN event e ON et.event_id = e.event_id
-         WHERE t.ticket_id = ANY($1)
-         ORDER BY et.start_time ASC`,
-        [listing.offered_ticket_ids]
-      );
-      offeredTickets = ticketsResult.rows.map(row => ({
-        ...row,
-        price: parseFloat(row.price),
-      }));
-    }
+    // Fetch offered tickets using LISTING_TICKET junction table
+    const ticketsResult = await query(
+      `SELECT 
+        t.*,
+        e.event_name,
+        e.venue,
+        et.start_time,
+        et.end_time
+       FROM listing_ticket lt
+       JOIN ticket t ON lt.ticket_id = t.ticket_id
+       JOIN eventtime et ON t.eventtime_id = et.eventtime_id
+       JOIN event e ON et.event_id = e.event_id
+       WHERE lt.listing_id = $1
+       ORDER BY et.start_time ASC`,
+      [listingId]
+    );
+    
+    const offeredTickets = ticketsResult.rows.map(row => ({
+      ...row,
+      price: parseFloat(row.price),
+    }));
+    
+    const offeredTicketIds = ticketsResult.rows.map(row => row.ticket_id);
 
     return NextResponse.json({
       listing: {
         ...listing,
         offered_tickets: offeredTickets,
+        offered_ticket_ids: offeredTicketIds, // For backward compatibility
       },
     });
 
@@ -182,6 +184,81 @@ export async function PATCH(
     console.error('Update listing error:', error);
     return NextResponse.json(
       { error: 'Failed to update listing' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    
+    if (!session.isLoggedIn) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const listingId = parseInt(id);
+
+    // Check if listing exists and belongs to user
+    const checkResult = await query(
+      'SELECT user_id, status FROM listing WHERE listing_id = $1',
+      [listingId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'Listing not found' },
+        { status: 404 }
+      );
+    }
+
+    if (checkResult.rows[0].user_id !== session.user_id) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only delete your own listings' },
+        { status: 403 }
+      );
+    }
+
+    // Check if there are any active trades associated with this listing
+    const tradesResult = await query(
+      'SELECT COUNT(*) as count FROM trade WHERE listing_id = $1 AND status IN ($2, $3)',
+      [listingId, 'Pending', 'Disputed']
+    );
+
+    if (parseInt(tradesResult.rows[0].count) > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete listing with active or disputed trades. Please cancel the trades first.' },
+        { status: 400 }
+      );
+    }
+
+    // Delete listing_ticket relationships first
+    await query(
+      'DELETE FROM listing_ticket WHERE listing_id = $1',
+      [listingId]
+    );
+
+    // Delete the listing
+    await query(
+      'DELETE FROM listing WHERE listing_id = $1',
+      [listingId]
+    );
+
+    return NextResponse.json({
+      message: 'Listing deleted successfully',
+    });
+
+  } catch (error) {
+    console.error('Delete listing error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete listing' },
       { status: 500 }
     );
   }

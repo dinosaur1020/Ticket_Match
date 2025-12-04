@@ -38,7 +38,6 @@ WITH user_insert AS (
     ('emma', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'emma@example.com', 'Active', 5000),
     ('frank', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'frank@example.com', 'Active', 18000),
     ('grace', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'grace@example.com', 'Suspended', 0),
-    ('admin', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'admin@example.com', 'Active', 50000),
     ('operator', '$2b$10$psOj32xIbX55J27LFnroG.l4YQgexQtJOPnO7CkNbXV2yfGzQLtc.', 'operator@example.com', 'Active', 30000)
     RETURNING user_id, username
 )
@@ -46,15 +45,10 @@ WITH user_insert AS (
 INSERT INTO user_role (user_id, role)
 SELECT ui.user_id,
        CASE ui.username
-           WHEN 'admin' THEN 'Admin'
-           WHEN 'operator' THEN 'BusinessOperator'
+           WHEN 'operator' THEN 'Operator'
            ELSE 'User'
        END as role
-FROM user_insert ui
-UNION ALL
-SELECT ui.user_id, 'User' as role
-FROM user_insert ui
-WHERE ui.username = 'operator';
+FROM user_insert ui;
 
 -- =========================================================
 -- EVENTS
@@ -314,7 +308,6 @@ INSERT INTO user_balance_log (user_id, trade_id, change, reason, created_at) VAL
 ((SELECT user_id FROM "USER" WHERE username = 'david'), NULL, 20000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
 ((SELECT user_id FROM "USER" WHERE username = 'emma'), NULL, 5000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
 ((SELECT user_id FROM "USER" WHERE username = 'frank'), NULL, 18000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
-((SELECT user_id FROM "USER" WHERE username = 'admin'), NULL, 50000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days'),
 ((SELECT user_id FROM "USER" WHERE username = 'operator'), NULL, 30000, 'INITIAL_BALANCE', NOW() - INTERVAL '30 days');
 
 -- =========================================================

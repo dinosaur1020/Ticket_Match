@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!session.roles.includes('BusinessOperator') && !session.roles.includes('Admin')) {
+    if (!session.roles.includes('Operator')) {
       return NextResponse.json(
-        { error: 'Forbidden: Only business operators can add performers' },
+        { error: 'Forbidden: Only operators can add performers' },
         { status: 403 }
       );
     }

@@ -7,7 +7,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole('BusinessOperator');
+    await requireRole('Operator');
 
     const { id } = await params;
     const userId = parseInt(id);

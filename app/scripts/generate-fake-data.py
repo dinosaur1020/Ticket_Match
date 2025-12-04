@@ -137,6 +137,7 @@ def main():
         print()
         print("📊 最終資料統計:")
         print(f"   👥 用戶: {len(generator.users):,}")
+        print(f"   👤 用戶角色: {len(generator.user_roles):,}")
         print(f"   🎪 活動: {len(generator.events):,}")
         print(f"   🕒 場次: {len(generator.eventtimes):,}")
         print(f"   🎫 票券: {len(generator.tickets):,} ⭐")
