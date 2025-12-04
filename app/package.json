@@ -25,6 +25,7 @@
     "setup-dump": "npm run generate-data:exact && npm run init-db && npm run init-db:seed generated-data.sql && npm run db:dump"
   },
   "dependencies": {
+    "autoprefixer": "^10.4.22",
     "bcrypt": "^6.0.0",
     "iron-session": "^8.0.4",
     "mongodb": "^7.0.0",

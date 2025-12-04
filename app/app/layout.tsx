@@ -8,12 +8,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="zh-TW">
-      <body className="antialiased">
+      <body>
         {children}
       </body>
     </html>

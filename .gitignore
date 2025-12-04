@@ -68,6 +68,11 @@ huge-data.sql
 test-data.sql
 test-*.sql
 
+# Database dump files (can be regenerated with npm run db:dump)
+*.dump
+ticket_match_data.dump
+ticket_match_data.sql
+
 # Temporary files
 *.tmp
 *.temp

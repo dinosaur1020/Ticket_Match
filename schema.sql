@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS USER_BALANCE_LOG CASCADE;
 DROP TABLE IF EXISTS TRADE_TICKET CASCADE;
 DROP TABLE IF EXISTS TRADE_PARTICIPANT CASCADE;
 DROP TABLE IF EXISTS TRADE CASCADE;
+DROP TABLE IF EXISTS LISTING_TICKET CASCADE;
 DROP TABLE IF EXISTS LISTING CASCADE;
 DROP TABLE IF EXISTS TICKET CASCADE;
 DROP TABLE IF EXISTS EVENT_PERFORMER CASCADE;
@@ -27,7 +28,11 @@ CREATE TABLE "USER" (
     status         VARCHAR(20) NOT NULL DEFAULT 'Active',
     -- 'Active', 'Suspended', 'Warning', ...
     balance        DECIMAL(10,2) NOT NULL DEFAULT 10000,
-    created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT check_user_status CHECK (status IN ('Active', 'Suspended', 'Warning')),
+    CONSTRAINT check_balance_non_negative CHECK (balance >= 0),
+    CONSTRAINT check_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
 
 -- =========================================================
@@ -41,7 +46,8 @@ CREATE TABLE USER_ROLE (
     role    VARCHAR(20) NOT NULL,
     -- 'User', 'Admin', ...
 
-    PRIMARY KEY (user_id, role)
+    PRIMARY KEY (user_id, role),
+    CONSTRAINT check_role CHECK (role IN ('User', 'Operator'))
 );
 
 -- =========================================================
@@ -66,7 +72,8 @@ CREATE TABLE EVENTTIME (
     start_time   TIMESTAMP NOT NULL,
     end_time     TIMESTAMP,
 
-    UNIQUE (event_id, start_time)
+    UNIQUE (event_id, start_time),
+    CONSTRAINT check_event_times CHECK (end_time IS NULL OR end_time > start_time)
 );
 
 -- =========================================================
@@ -103,7 +110,11 @@ CREATE TABLE TICKET (
     status         VARCHAR(20) NOT NULL DEFAULT 'Active',
     -- 'Active', 'Locked', 'Completed', 'Expired', 'Canceled'
 
-    created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT check_ticket_status CHECK (status IN ('Active', 'Locked', 'Completed', 'Expired', 'Canceled')),
+    CONSTRAINT check_ticket_price_positive CHECK (price > 0),
+    CONSTRAINT unique_ticket_seat UNIQUE (eventtime_id, seat_area, seat_number)
 );
 
 -- =========================================================
@@ -128,14 +139,33 @@ CREATE TABLE LISTING (
     type        VARCHAR(20) NOT NULL,
     -- 'Sell', 'Buy', 'Exchange'
 
-    offered_ticket_ids INTEGER[],
+    offered_ticket_ids INTEGER[] DEFAULT NULL,
     -- Array of ticket IDs that the listing owner offers (for Exchange and Sell listings)
 
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT check_listing_status CHECK (status IN ('Active', 'Canceled', 'Completed', 'Expired')),
+    CONSTRAINT check_listing_type CHECK (type IN ('Sell', 'Buy', 'Exchange'))
 );
 
 -- =========================================================
--- 8. TRADE
+-- 8. LISTING_TICKET
+-- =========================================================
+CREATE TABLE LISTING_TICKET (
+    listing_id  INTEGER NOT NULL
+        REFERENCES LISTING(listing_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    ticket_id   INTEGER NOT NULL
+        REFERENCES TICKET(ticket_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    PRIMARY KEY (listing_id, ticket_id)
+);
+
+-- =========================================================
+-- 9. TRADE
 -- =========================================================
 -- Version A: 每筆 TRADE 只對應一則 LISTING（發文者）
 CREATE TABLE TRADE (
@@ -153,11 +183,14 @@ CREATE TABLE TRADE (
     -- 整筆交易雙方協議的總金額，以 listing 發文者為賣方
 
     created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    
+    CONSTRAINT check_trade_status CHECK (status IN ('Pending', 'Completed', 'Canceled', 'Disputed', 'Expired')),
+    CONSTRAINT check_agreed_price_non_negative CHECK (agreed_price >= 0)
 );
 
 -- =========================================================
--- 9. TRADE_PARTICIPANT
+-- 10. TRADE_PARTICIPANT
 -- =========================================================
 CREATE TABLE TRADE_PARTICIPANT (
     trade_id      INTEGER NOT NULL
@@ -175,11 +208,12 @@ CREATE TABLE TRADE_PARTICIPANT (
     confirmed     BOOLEAN NOT NULL DEFAULT FALSE,
     confirmed_at  TIMESTAMP,
 
-    PRIMARY KEY (trade_id, user_id)
+    PRIMARY KEY (trade_id, user_id),
+    CONSTRAINT check_participant_role CHECK (role IN ('buyer', 'seller', 'exchanger'))
 );
 
 -- =========================================================
--- 10. TRADE_TICKET
+-- 11. TRADE_TICKET
 -- =========================================================
 CREATE TABLE TRADE_TICKET (
     trade_id      INTEGER NOT NULL
@@ -213,7 +247,7 @@ CREATE TABLE TRADE_TICKET (
 );
 
 -- =========================================================
--- 11. USER_BALANCE_LOG
+-- 12. USER_BALANCE_LOG
 -- =========================================================
 CREATE TABLE USER_BALANCE_LOG (
     log_id      SERIAL PRIMARY KEY,
@@ -239,13 +273,58 @@ CREATE TABLE USER_BALANCE_LOG (
 -- =========================================================
 -- Indexes
 -- =========================================================
+-- Basic indexes
 CREATE INDEX idx_user_status       ON "USER"(status);
 CREATE INDEX idx_ticket_owner      ON TICKET(owner_id);
 CREATE INDEX idx_ticket_eventtime  ON TICKET(eventtime_id);
 CREATE INDEX idx_listing_user      ON LISTING(user_id);
 CREATE INDEX idx_listing_event     ON LISTING(event_id);
-CREATE INDEX idx_listing_offered_tickets ON LISTING USING GIN (offered_ticket_ids);
+CREATE INDEX idx_listing_ticket_listing ON LISTING_TICKET(listing_id);
+CREATE INDEX idx_listing_ticket_ticket  ON LISTING_TICKET(ticket_id);
 CREATE INDEX idx_trade_listing     ON TRADE(listing_id);
 CREATE INDEX idx_tp_user           ON TRADE_PARTICIPANT(user_id);
 CREATE INDEX idx_tt_ticket         ON TRADE_TICKET(ticket_id);
 CREATE INDEX idx_ubl_user          ON USER_BALANCE_LOG(user_id);
+
+-- Composite indexes for common query patterns
+CREATE INDEX idx_listing_status_type ON LISTING(status, type);
+CREATE INDEX idx_listing_event_status ON LISTING(event_id, status);
+CREATE INDEX idx_ticket_status ON TICKET(status);
+CREATE INDEX idx_ticket_owner_status ON TICKET(owner_id, status);
+CREATE INDEX idx_trade_status ON TRADE(status);
+
+-- Indexes for time-based sorting (DESC for recent items)
+CREATE INDEX idx_listing_created_desc ON LISTING(created_at DESC);
+CREATE INDEX idx_trade_created_desc ON TRADE(created_at DESC);
+
+-- Index for user balance log trade lookups
+CREATE INDEX idx_ubl_trade ON USER_BALANCE_LOG(trade_id) WHERE trade_id IS NOT NULL;
+
+-- Index for event time queries
+CREATE INDEX idx_eventtime_start ON EVENTTIME(start_time);
+
+-- Partial indexes for active records (most common queries)
+CREATE INDEX idx_listing_active ON LISTING(event_id, created_at DESC) 
+    WHERE status = 'Active';
+CREATE INDEX idx_ticket_active ON TICKET(owner_id, eventtime_id) 
+    WHERE status = 'Active';
+CREATE INDEX idx_trade_pending ON TRADE(listing_id, created_at DESC)
+    WHERE status = 'Pending';
+
+-- =========================================================
+-- Triggers
+-- =========================================================
+-- Trigger function for automatic updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply trigger to TRADE table
+CREATE TRIGGER update_trade_updated_at 
+    BEFORE UPDATE ON TRADE
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
