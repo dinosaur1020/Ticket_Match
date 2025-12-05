@@ -155,27 +155,35 @@ export async function POST(
         if (trade.agreed_price !== 0) {
           if (isExchange) {
             // For exchange with price difference
-            // The agreed_price is paid by one exchanger to the other
-            // Determine payer and receiver based on ticket values or agreed terms
+            // The agreed_price can be positive or negative:
+            // - Positive: listing owner receives money (trade initiator pays)
+            // - Negative: listing owner pays money (trade initiator receives)
             const participants = participantsResult.rows;
-            const user1 = participants[0].user_id;
-            const user2 = participants[1].user_id;
+            const listingOwner = participants.find((p: any) => p.user_id === trade.seller_id);
+            const tradeInitiator = participants.find((p: any) => p.user_id !== trade.seller_id);
             
-            // For simplicity, listing owner receives the price difference
+            if (!listingOwner || !tradeInitiator) {
+              throw new Error('Invalid trade participants');
+            }
+
+            const priceAmount = parseFloat(trade.agreed_price);
+            
+            // Update balances based on price direction
             await client.query(
               `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
-              [trade.agreed_price, user1]
+              [priceAmount, listingOwner.user_id]
             );
 
             await client.query(
               `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-              [trade.agreed_price, user2]
+              [priceAmount, tradeInitiator.user_id]
             );
 
-            // Check payer has sufficient balance
+            // Check if payer has sufficient balance
+            const payerId = priceAmount > 0 ? tradeInitiator.user_id : listingOwner.user_id;
             const payerBalanceResult = await client.query(
               `SELECT balance FROM "USER" WHERE user_id = $1`,
-              [user2]
+              [payerId]
             );
 
             if (parseFloat(payerBalanceResult.rows[0].balance) < 0) {
@@ -186,7 +194,7 @@ export async function POST(
             await client.query(
               `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
                VALUES ($1, $2, $3, 'TRADE_PRICE_DIFFERENCE'), ($4, $2, $5, 'TRADE_PRICE_DIFFERENCE')`,
-              [user1, tradeId, trade.agreed_price, user2, -trade.agreed_price]
+              [listingOwner.user_id, tradeId, priceAmount, tradeInitiator.user_id, -priceAmount]
             );
             
           } else {

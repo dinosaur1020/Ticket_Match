@@ -256,7 +256,8 @@ class TicketMatchDataGenerator:
             ticket_id = self.next_ids['ticket_id']
             # Select random price from available ranges
             price = self.fake.random_int(min=1200, max=12000)
-            status = self.fake.random_element(['Active', 'Locked', 'Completed', 'Expired', 'Canceled'])
+            # 提高Active票券的比例，因為大多數票券應該是可以使用的
+            status = self.fake.random_element(['Active'] * 70 + ['Locked'] * 15 + ['Completed'] * 10 + ['Expired'] * 3 + ['Canceled'] * 2)
             created_at = self.fake.date_time_between(start_date='-1y', end_date='now')
 
             tickets.append({
@@ -303,14 +304,16 @@ class TicketMatchDataGenerator:
                 ticket_index[owner_id] = []
             ticket_index[owner_id].append(ticket)
 
-        # 統計用戶票券持有情況
+        # 統計用戶票券持有情況（只包含Active票券）
         user_ticket_inventory = {}
         for user in self.users:
             user_id = user['user_id']
             user_tickets = ticket_index.get(user_id, [])
-            user_ticket_inventory[user_id] = user_tickets
+            # 只包含狀態為Active的票券
+            active_tickets = [t for t in user_tickets if t['status'] == 'Active']
+            user_ticket_inventory[user_id] = active_tickets
 
-        # 分類用戶
+        # 分類用戶（基於Active票券）
         users_with_tickets = [(uid, tickets) for uid, tickets in user_ticket_inventory.items() if len(tickets) > 0]
         users_without_tickets = [(uid, tickets) for uid, tickets in user_ticket_inventory.items() if len(tickets) == 0]
 
@@ -406,18 +409,19 @@ class TicketMatchDataGenerator:
 
             # 處理票券關聯
             if listing_type in ['Sell', 'Exchange'] and available_tickets:
-                # 找到這個活動的相關票券
+                # 找到這個活動的相關Active票券
                 event_tickets = [t for t in available_tickets
-                               if any(et['eventtime_id'] == t['eventtime_id']
+                               if t['status'] == 'Active' and
+                               any(et['eventtime_id'] == t['eventtime_id']
                                      for et in self.eventtimes if et['event_id'] == event['event_id'])]
 
                 if event_tickets:
-                    # 隨機選擇1-3張票券
+                    # 隨機選擇1-3張Active票券
                     selected_count = min(self.fake.random_int(1, 3), len(event_tickets))
                     selected_tickets = self.fake.random_sample(event_tickets, selected_count)
                     listing['offered_ticket_ids'] = [t['ticket_id'] for t in selected_tickets]
                 else:
-                    # 如果沒有這個活動的票券，改為Buy貼文
+                    # 如果沒有這個活動的Active票券，改為Buy貼文
                     listing['type'] = 'Buy'
                     listing['offered_ticket_ids'] = None
             else:

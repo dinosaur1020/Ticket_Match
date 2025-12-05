@@ -36,6 +36,7 @@ export default function ListingDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [editStatus, setEditStatus] = useState('');
+  const [paymentDirection, setPaymentDirection] = useState<'i_pay' | 'they_pay'>('i_pay');
 
   useEffect(() => {
     fetchListingDetail();
@@ -90,10 +91,15 @@ export default function ListingDetailPage() {
       return;
     }
 
-    const priceValue = parseFloat(agreedPrice);
+    let priceValue = parseFloat(agreedPrice);
     if (priceValue < 0) {
       alert('交易金額不能為負數');
       return;
+    }
+
+    // For Exchange: if they_pay, use negative price to indicate direction
+    if (listing?.type === 'Exchange' && paymentDirection === 'they_pay') {
+      priceValue = -priceValue;
     }
 
     // Validation based on listing type
@@ -467,6 +473,37 @@ export default function ListingDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   協議金額 *
                 </label>
+
+                {/* Payment Direction for Exchange */}
+                {listing.type === 'Exchange' && (
+                  <div className="mb-3">
+                    <div className="flex gap-3">
+                      <label className="flex-1">
+                        <input
+                          type="radio"
+                          name="paymentDirection"
+                          value="i_pay"
+                          checked={paymentDirection === 'i_pay'}
+                          onChange={(e) => setPaymentDirection(e.target.value as 'i_pay' | 'they_pay')}
+                          className="mr-2"
+                        />
+                        <span className="text-gray-900">我給對方錢（補差價）</span>
+                      </label>
+                      <label className="flex-1">
+                        <input
+                          type="radio"
+                          name="paymentDirection"
+                          value="they_pay"
+                          checked={paymentDirection === 'they_pay'}
+                          onChange={(e) => setPaymentDirection(e.target.value as 'i_pay' | 'they_pay')}
+                          className="mr-2"
+                        />
+                        <span className="text-gray-900">對方給我錢（收差價）</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="number"
                   value={agreedPrice}
@@ -477,7 +514,14 @@ export default function ListingDetailPage() {
                   step="0.01"
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  {listing.type === 'Sell' ? '您需要支付的金額' : '您將收到的金額'}
+                  {listing.type === 'Sell' 
+                    ? '您需要支付的金額' 
+                    : listing.type === 'Buy'
+                    ? '您將收到的金額'
+                    : paymentDirection === 'i_pay'
+                    ? '您將支付給對方的金額（輸入0表示等價交換）'
+                    : '對方將支付給您的金額（輸入0表示等價交換）'
+                  }
                 </p>
               </div>
 
@@ -590,14 +634,15 @@ export default function ListingDetailPage() {
                     ℹ️ 此為換票貼文，雙方交換票券。
                   </p>
                   <p className="text-sm text-orange-800">
-                    • 協議金額為0表示等價交換<br />
-                    • 協議金額大於0表示您需要補差價給對方
+                    • 輸入0表示等價交換（不涉及金錢）<br />
+                    • 選擇「我給對方錢」表示您要補差價給對方<br />
+                    • 選擇「對方給我錢」表示對方要補差價給您
                   </p>
                 </div>
               )}
 
               {/* Balance Check */}
-              {(listing.type === 'Sell' || (listing.type === 'Exchange' && parseFloat(agreedPrice || '0') > 0)) && (
+              {(listing.type === 'Sell' || (listing.type === 'Exchange' && paymentDirection === 'i_pay' && parseFloat(agreedPrice || '0') > 0)) && (
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-700">
                     目前餘額：<span className="font-bold">${user.balance.toFixed(2)}</span>
@@ -607,6 +652,14 @@ export default function ListingDetailPage() {
                       ⚠️ 餘額不足！請充值或降低交易金額
                     </p>
                   )}
+                </div>
+              )}
+
+              {listing.type === 'Exchange' && paymentDirection === 'they_pay' && parseFloat(agreedPrice || '0') > 0 && (
+                <div className="mb-6 p-4 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    ✓ 您將收到：<span className="font-bold">${parseFloat(agreedPrice).toFixed(2)}</span>
+                  </p>
                 </div>
               )}
 

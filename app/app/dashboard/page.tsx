@@ -415,31 +415,40 @@ export default function DashboardPage() {
                           </div>
 
                           {/* Action Buttons */}
-                          {trade.status === 'Pending' && (
-                            <div className="space-y-2">
-                              {!trade.my_confirmed && (
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => router.push(`/trades/${trade.trade_id}`)}
+                              className="w-full bg-gray-700 text-white py-2 rounded-lg hover:bg-gray-800 transition font-semibold"
+                            >
+                              查看詳情
+                            </button>
+                            
+                            {trade.status === 'Pending' && (
+                              <>
+                                {!trade.my_confirmed && (
+                                  <button
+                                    onClick={() => handleConfirmTrade(trade.trade_id)}
+                                    className="w-full bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold"
+                                  >
+                                    確認交易
+                                  </button>
+                                )}
+
+                                {trade.my_confirmed && (
+                                  <p className="text-center text-sm text-gray-600 py-2">
+                                    等待對方確認...
+                                  </p>
+                                )}
+
                                 <button
-                                  onClick={() => handleConfirmTrade(trade.trade_id)}
-                                  className="w-full bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold"
+                                  onClick={() => handleCancelTrade(trade.trade_id)}
+                                  className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition font-semibold"
                                 >
-                                  確認交易
+                                  取消交易
                                 </button>
-                              )}
-
-                              {trade.my_confirmed && (
-                                <p className="text-center text-sm text-gray-600 py-2">
-                                  等待對方確認...
-                                </p>
-                              )}
-
-                              <button
-                                onClick={() => handleCancelTrade(trade.trade_id)}
-                                className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition font-semibold"
-                              >
-                                取消交易
-                              </button>
-                            </div>
-                          )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
