@@ -397,7 +397,6 @@ export default function TradeDetailPage() {
                         <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
                           ticket.ticket_status === 'Active' ? 'bg-green-100 text-green-700' :
                           ticket.ticket_status === 'Locked' ? 'bg-yellow-100 text-yellow-700' :
-                          ticket.ticket_status === 'Completed' ? 'bg-blue-100 text-blue-800' :
                           'bg-gray-100 text-gray-700'
                         }`}>
                           {ticket.ticket_status}

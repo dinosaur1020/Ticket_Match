@@ -40,7 +40,7 @@ export interface Ticket {
   seat_area: string;
   seat_number: string;
   price: number;
-  status: 'Active' | 'Locked' | 'Completed' | 'Expired' | 'Canceled';
+  status: 'Active' | 'Locked' | 'Expired' | 'Canceled';
   created_at: Date;
 }
 

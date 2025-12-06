@@ -126,10 +126,10 @@ export async function POST(
             throw new Error(`Ticket ${ticketRow.ticket_id} is not in locked state (status: ${ticket.status})`);
           }
 
-          // Transfer ownership and mark as completed
+          // Transfer ownership (keep status as Active)
           await client.query(
             `UPDATE ticket
-             SET owner_id = $1, status = 'Completed'
+             SET owner_id = $1, status = 'Active'
              WHERE ticket_id = $2`,
             [ticketRow.to_user_id, ticketRow.ticket_id]
           );

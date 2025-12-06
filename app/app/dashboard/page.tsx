@@ -244,8 +244,6 @@ export default function DashboardPage() {
                                     ? 'bg-green-100 text-green-700'
                                     : ticket.status === 'Locked'
                                     ? 'bg-yellow-100 text-yellow-700'
-                                    : ticket.status === 'Completed'
-                                    ? 'bg-blue-100 text-blue-800'
                                     : 'bg-gray-100 text-gray-700'
                                 }`}
                               >

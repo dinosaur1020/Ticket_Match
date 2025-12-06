@@ -112,7 +112,7 @@ CREATE TABLE TICKET (
 
     created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
     
-    CONSTRAINT check_ticket_status CHECK (status IN ('Active', 'Locked', 'Completed', 'Expired', 'Canceled')),
+    CONSTRAINT check_ticket_status CHECK (status IN ('Active', 'Locked', 'Expired', 'Canceled')),
     CONSTRAINT check_ticket_price_positive CHECK (price > 0),
     CONSTRAINT unique_ticket_seat UNIQUE (eventtime_id, seat_area, seat_number)
 );

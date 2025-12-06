@@ -257,7 +257,7 @@ class TicketMatchDataGenerator:
             # Select random price from available ranges
             price = self.fake.random_int(min=1200, max=12000)
             # 提高Active票券的比例，因為大多數票券應該是可以使用的
-            status = self.fake.random_element(['Active'] * 70 + ['Locked'] * 15 + ['Completed'] * 10 + ['Expired'] * 3 + ['Canceled'] * 2)
+            status = self.fake.random_element(['Active'] * 80 + ['Locked'] * 15 + ['Expired'] * 3 + ['Canceled'] * 2)
             created_at = self.fake.date_time_between(start_date='-1y', end_date='now')
 
             tickets.append({
@@ -514,12 +514,23 @@ class TicketMatchDataGenerator:
         listing_index = {l['listing_id']: l for l in self.listings
                         if l['type'] in ['Sell', 'Exchange']}
         ticket_index = {t['ticket_id']: t for t in self.tickets}
+        used_tickets = set()  # Track tickets that have been traded
 
         for i in range(trade_count):
-            # 隨機選擇可交易的貼文
+            # 隨機選擇可交易的貼文（其票券尚未被交易過）
             if not listing_index:
                 break
-            listing = self.fake.random_element(list(listing_index.values()))
+            
+            # 找到一個還沒交易過的listing
+            available_listings = [l for l in listing_index.values()
+                                 if not l.get('offered_ticket_ids') or
+                                 not any(tid in used_tickets for tid in l['offered_ticket_ids'])]
+            
+            if not available_listings:
+                print(f"   ⚠️  只能生成 {len(trades)} 筆交易（可用listing已用盡）")
+                break
+            
+            listing = self.fake.random_element(available_listings)
 
             # 決定買家（不能是貼文發佈者）
             seller_id = listing['user_id']
@@ -570,7 +581,7 @@ class TicketMatchDataGenerator:
                 }
             ])
 
-            # 生成交易票券記錄
+            # 生成交易票券記錄並更新票券所有權
             if listing['offered_ticket_ids']:
                 for ticket_id in listing['offered_ticket_ids']:
                     if ticket_id in ticket_index:
@@ -580,6 +591,10 @@ class TicketMatchDataGenerator:
                             'from_user_id': seller_id,
                             'to_user_id': buyer['user_id']
                         })
+                        # ⭐ UPDATE TICKET OWNERSHIP AFTER TRADE
+                        ticket_index[ticket_id]['owner_id'] = buyer['user_id']
+                        # ⭐ MARK TICKET AS USED (cannot be traded again)
+                        used_tickets.add(ticket_id)
 
             # 生成餘額記錄
             balance_logs.extend([
@@ -606,6 +621,56 @@ class TicketMatchDataGenerator:
         self.trade_tickets = trade_tickets
         self.balance_logs = balance_logs
         return trades, trade_participants, trade_tickets, balance_logs
+
+    def validate_data_integrity(self):
+        """驗證資料完整性"""
+        print("   🔍 驗證資料完整性...")
+        errors = []
+        
+        # 1. 驗證所有eventtime都有對應的event
+        eventtime_ids = {et['eventtime_id'] for et in self.eventtimes}
+        event_ids = {e['event_id'] for e in self.events}
+        for et in self.eventtimes:
+            if et['event_id'] not in event_ids:
+                errors.append(f"Eventtime {et['eventtime_id']} 引用了不存在的 event_id {et['event_id']}")
+        
+        # 2. 驗證所有ticket都有對應的eventtime
+        for ticket in self.tickets:
+            if ticket['eventtime_id'] not in eventtime_ids:
+                errors.append(f"Ticket {ticket['ticket_id']} 引用了不存在的 eventtime_id {ticket['eventtime_id']}")
+        
+        # 3. 驗證票券所有權與交易記錄一致
+        ticket_ownership = {t['ticket_id']: t['owner_id'] for t in self.tickets}
+        for trade_ticket in self.trade_tickets:
+            ticket_id = trade_ticket['ticket_id']
+            expected_owner = trade_ticket['to_user_id']
+            actual_owner = ticket_ownership.get(ticket_id)
+            if actual_owner != expected_owner:
+                errors.append(f"Ticket {ticket_id} 的所有權不一致: 交易記錄顯示應為 {expected_owner}，但實際為 {actual_owner}")
+        
+        # 4. 驗證listings的event_id有效
+        for listing in self.listings:
+            if listing['event_id'] not in event_ids:
+                errors.append(f"Listing {listing['listing_id']} 引用了不存在的 event_id {listing['event_id']}")
+        
+        # 5. 驗證Sell/Exchange listings的票券狀態
+        for listing in self.listings:
+            if listing['type'] in ['Sell', 'Exchange'] and listing.get('offered_ticket_ids'):
+                for ticket_id in listing['offered_ticket_ids']:
+                    ticket = next((t for t in self.tickets if t['ticket_id'] == ticket_id), None)
+                    if ticket and ticket['status'] != 'Active':
+                        errors.append(f"Listing {listing['listing_id']} ({listing['type']}) 包含非Active狀態的票券 {ticket_id} (status: {ticket['status']})")
+        
+        if errors:
+            print("   ❌ 發現資料完整性問題:")
+            for error in errors[:10]:  # 只顯示前10個錯誤
+                print(f"      - {error}")
+            if len(errors) > 10:
+                print(f"      ... 還有 {len(errors) - 10} 個錯誤")
+            return False
+        else:
+            print("   ✅ 資料完整性驗證通過")
+            return True
 
     def export_to_sql(self, filename='generated-data.sql'):
         """將所有資料匯出為SQL文件"""

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     let sql = `
-      SELECT 
+      SELECT
         e.event_id,
         e.event_name,
         e.venue,
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         MAX(et.start_time) as latest_date,
         array_agg(DISTINCT ep.performer) as performers
       FROM event e
-      LEFT JOIN eventtime et ON e.event_id = et.event_id
+      INNER JOIN eventtime et ON e.event_id = et.event_id
       LEFT JOIN event_performer ep ON e.event_id = ep.event_id
       LEFT JOIN listing l ON e.event_id = l.event_id
     `;
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const result = await query(sql, params);
 
     // Get total count for pagination
-    let countSql = `SELECT COUNT(*) as total FROM event e`;
+    let countSql = `SELECT COUNT(DISTINCT e.event_id) as total FROM event e INNER JOIN eventtime et ON e.event_id = et.event_id`;
     const countParams: any[] = [];
     if (search) {
       countSql += ` LEFT JOIN event_performer ep ON e.event_id = ep.event_id WHERE e.event_name ILIKE $1 OR e.venue ILIKE $1 OR ep.performer ILIKE $1`;

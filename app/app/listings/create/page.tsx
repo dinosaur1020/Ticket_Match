@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -21,6 +21,7 @@ interface EventTime {
 export default function CreateListingPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const eventDropdownRef = useRef<HTMLDivElement>(null);
   
   const [events, setEvents] = useState<Event[]>([]);
   const [eventTimes, setEventTimes] = useState<EventTime[]>([]);
@@ -34,6 +35,8 @@ export default function CreateListingPage() {
   
   const [loading, setLoading] = useState(false);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventSearch, setEventSearch] = useState('');
+  const [showEventDropdown, setShowEventDropdown] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -56,10 +59,24 @@ export default function CreateListingPage() {
     }
   }, [selectedEventId]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (eventDropdownRef.current && !eventDropdownRef.current.contains(event.target as Node)) {
+        setShowEventDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const fetchEvents = async () => {
     setEventsLoading(true);
     try {
-      const response = await fetch('/api/events?limit=100');
+      const response = await fetch('/api/events?limit=1000');
       const data = await response.json();
       setEvents(data.events || []);
     } catch (error) {
@@ -153,10 +170,22 @@ export default function CreateListingPage() {
     });
   };
 
+  // Filter events by search
+  const filteredEvents = events.filter(event => 
+    event.event_name.toLowerCase().includes(eventSearch.toLowerCase()) ||
+    event.venue.toLowerCase().includes(eventSearch.toLowerCase())
+  );
+
   // Filter tickets for selected event
   const relevantTickets = myTickets.filter(ticket => 
     !selectedEventId || ticket.event_id === parseInt(selectedEventId)
   );
+
+  const handleEventSelect = (eventId: number, eventName: string, venue: string) => {
+    setSelectedEventId(eventId.toString());
+    setEventSearch(`${eventName} - ${venue}`);
+    setShowEventDropdown(false);
+  };
 
   if (authLoading || !user) {
     return null;
@@ -213,7 +242,7 @@ export default function CreateListingPage() {
                 </div>
               </div>
 
-              {/* Event Selection */}
+              {/* Event Selection with Search */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   選擇活動 *
@@ -221,19 +250,44 @@ export default function CreateListingPage() {
                 {eventsLoading ? (
                   <p className="text-gray-600">載入活動中...</p>
                 ) : (
-                  <select
-                    value={selectedEventId}
-                    onChange={(e) => setSelectedEventId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-gray-900"
-                    required
-                  >
-                    <option value="">-- 請選擇活動 --</option>
-                    {events.map((event) => (
-                      <option key={event.event_id} value={event.event_id}>
-                        {event.event_name} - {event.venue}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative" ref={eventDropdownRef}>
+                    <input
+                      type="text"
+                      value={eventSearch}
+                      onChange={(e) => {
+                        setEventSearch(e.target.value);
+                        setShowEventDropdown(true);
+                        if (!e.target.value) {
+                          setSelectedEventId('');
+                        }
+                      }}
+                      onFocus={() => setShowEventDropdown(true)}
+                      placeholder="搜尋活動名稱或場地..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-gray-900"
+                      required
+                    />
+                    {showEventDropdown && filteredEvents.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {filteredEvents.map((event) => (
+                          <div
+                            key={event.event_id}
+                            onClick={() => handleEventSelect(event.event_id, event.event_name, event.venue)}
+                            className={`px-4 py-2 cursor-pointer hover:bg-blue-50 ${
+                              selectedEventId === event.event_id.toString() ? 'bg-blue-100' : ''
+                            }`}
+                          >
+                            <p className="font-semibold text-gray-900">{event.event_name}</p>
+                            <p className="text-sm text-gray-600">📍 {event.venue}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showEventDropdown && eventSearch && filteredEvents.length === 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4">
+                        <p className="text-gray-600 text-center">找不到符合的活動</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
