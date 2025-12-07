@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import { getIronSession, IronSession } from 'iron-session';
 import { cookies } from 'next/headers';
+import { query } from './db';
 
 const SALT_ROUNDS = 10;
 
@@ -10,6 +11,7 @@ export interface SessionData {
   email: string;
   roles: string[];
   isLoggedIn: boolean;
+  status?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -49,11 +51,30 @@ export async function requireAuth(): Promise<SessionData> {
     throw new Error('Unauthorized');
   }
   
+  // Check user status in database
+  const userResult = await query(
+    `SELECT status FROM "USER" WHERE user_id = $1`,
+    [session.user_id]
+  );
+  
+  if (userResult.rows.length === 0) {
+    throw new Error('User not found');
+  }
+  
+  const userStatus = userResult.rows[0].status;
+  
+  if (userStatus === 'Suspended') {
+    throw new Error('Account suspended: Your account has been suspended by an administrator');
+  }
+  
+  // Update session with current status
+  session.status = userStatus;
+  
   return session as SessionData;
 }
 
 export async function requireRole(role: string): Promise<SessionData> {
-  const session = await requireAuth();
+  const session = await requireAuth(); // This already checks for suspension
 
   if (!session.roles.includes(role)) {
     throw new Error('Forbidden: Insufficient permissions');
@@ -63,7 +84,7 @@ export async function requireRole(role: string): Promise<SessionData> {
 }
 
 export async function requireRoles(allowedRoles: string[]): Promise<SessionData> {
-  const session = await requireAuth();
+  const session = await requireAuth(); // This already checks for suspension
 
   const hasRequiredRole = allowedRoles.some(role => session.roles.includes(role));
   if (!hasRequiredRole) {

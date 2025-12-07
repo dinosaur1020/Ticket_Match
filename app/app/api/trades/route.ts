@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
       const trade = tradeResult.rows[0];
 
       // Determine roles and ticket handling based on listing type
-      let user1Role: string;
-      let user2Role: string;
+      let user1Role: string = '';
+      let user2Role: string = '';
       let user1TicketIds: number[] = [];
       let user2TicketIds: number[] = [];
 
@@ -121,6 +121,8 @@ export async function POST(request: NextRequest) {
         
         user1TicketIds = listing_owner_ticket_ids;
         user2TicketIds = ticket_ids;
+      } else {
+        throw new Error('Invalid listing type');
       }
 
       // Add participants

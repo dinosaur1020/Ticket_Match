@@ -36,12 +36,25 @@ export async function GET(request: NextRequest) {
 
     const result = await query(sql, params);
 
+    // Get total count
+    let countSql = `SELECT COUNT(*) as total FROM listing l`;
+    const countParams: any[] = [];
+    
+    if (status) {
+      countSql += ` WHERE l.status = $1`;
+      countParams.push(status);
+    }
+    
+    const countResult = await query(countSql, countParams);
+    const total = parseInt(countResult.rows[0].total);
+
     return NextResponse.json({
       listings: result.rows,
       pagination: {
         limit,
         offset,
         count: result.rows.length,
+        total,
       },
     });
 

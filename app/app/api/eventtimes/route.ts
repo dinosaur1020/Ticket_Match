@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { requireRole } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole('Operator');
+
     const body = await request.json();
     const { event_id, start_time, end_time } = body;
 
@@ -59,8 +62,16 @@ export async function POST(request: NextRequest) {
       eventTime: result.rows[0],
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create event time error:', error);
+    
+    if (error.message.includes('Forbidden') || error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.message === 'Unauthorized' ? 401 : 403 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create event time' },
       { status: 500 }

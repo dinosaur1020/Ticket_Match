@@ -10,7 +10,6 @@ export async function PATCH(
     await requireRole('Operator');
 
     const { id } = await params;
-    const userId = parseInt(id);
     const body = await request.json();
     const { status } = body;
 
@@ -21,9 +20,18 @@ export async function PATCH(
       );
     }
 
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
+    }
+
     const result = await query(
       `UPDATE "USER" SET status = $1 WHERE user_id = $2 RETURNING user_id, username, email, status`,
-      [status, userId]
+      [status, id]
     );
 
     if (result.rows.length === 0) {

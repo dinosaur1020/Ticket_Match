@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { getSession } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,14 +120,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-    
-    if (!session.isLoggedIn) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
 
     const body = await request.json();
     const { event_id, event_date, content, type, offered_ticket_ids } = body;
@@ -212,8 +205,23 @@ export async function POST(request: NextRequest) {
       listing: newListing,
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create listing error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    if (error.message && error.message.includes('Account suspended')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 403 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create listing' },
       { status: 500 }

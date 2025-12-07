@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 const pool = new Pool({
   host: process.env.POSTGRES_HOST || 'localhost',
@@ -17,7 +17,7 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { getSession } from '@/lib/auth';
+import { getSession, requireAuth } from '@/lib/auth';
 import { logUserActivity } from '@/lib/mongodb';
 
 export async function GET(
@@ -98,14 +98,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    
-    if (!session.isLoggedIn) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
 
     const { id } = await params;
     const listingId = parseInt(id);
@@ -125,15 +118,19 @@ export async function PATCH(
       );
     }
 
-    if (checkResult.rows[0].user_id !== session.user_id) {
+    // Allow if user owns the listing OR user is an operator (admin)
+    const isOwner = checkResult.rows[0].user_id === session.user_id;
+    const isOperator = session.roles.includes('Operator');
+    
+    if (!isOwner && !isOperator) {
       return NextResponse.json(
         { error: 'Forbidden: You can only modify your own listings' },
         { status: 403 }
       );
     }
 
-    // Don't allow modification of completed listings
-    if (checkResult.rows[0].current_status === 'Completed') {
+    // Don't allow modification of completed listings (unless operator)
+    if (checkResult.rows[0].current_status === 'Completed' && !isOperator) {
       return NextResponse.json(
         { error: 'Cannot modify completed listings' },
         { status: 400 }
@@ -149,9 +146,14 @@ export async function PATCH(
       values.push(content);
     }
     if (status) {
-      if (!['Active', 'Canceled'].includes(status)) {
+      // Operators can use all statuses, regular users can only use Active or Canceled
+      const allowedStatuses = isOperator 
+        ? ['Active', 'Canceled', 'Expired', 'Completed']
+        : ['Active', 'Canceled'];
+      
+      if (!allowedStatuses.includes(status)) {
         return NextResponse.json(
-          { error: 'Status must be Active or Canceled' },
+          { error: `Status must be one of: ${allowedStatuses.join(', ')}` },
           { status: 400 }
         );
       }
@@ -180,8 +182,23 @@ export async function PATCH(
       listing: result.rows[0],
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update listing error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    if (error.message && error.message.includes('Account suspended')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 403 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to update listing' },
       { status: 500 }
@@ -194,14 +211,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    
-    if (!session.isLoggedIn) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const session = await requireAuth();
 
     const { id } = await params;
     const listingId = parseInt(id);
@@ -219,7 +229,11 @@ export async function DELETE(
       );
     }
 
-    if (checkResult.rows[0].user_id !== session.user_id) {
+    // Allow if user owns the listing OR user is an operator (admin)
+    const isOwner = checkResult.rows[0].user_id === session.user_id;
+    const isOperator = session.roles.includes('Operator');
+    
+    if (!isOwner && !isOperator) {
       return NextResponse.json(
         { error: 'Forbidden: You can only delete your own listings' },
         { status: 403 }
@@ -255,8 +269,23 @@ export async function DELETE(
       message: 'Listing deleted successfully',
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete listing error:', error);
+    
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    if (error.message && error.message.includes('Account suspended')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 403 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to delete listing' },
       { status: 500 }
