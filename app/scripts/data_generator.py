@@ -449,6 +449,9 @@ class TicketMatchDataGenerator:
 
         print(f"   🎯 最終分配: Sell {sell_assigned}, Exchange {exchange_assigned}, Buy {buy_target}")
 
+        # Track which tickets have been used in listings to prevent reuse
+        used_ticket_ids = set()
+
         # 根據計劃生成實際貼文
         for plan in listing_plans:
             user_id = plan['user_id']
@@ -457,15 +460,19 @@ class TicketMatchDataGenerator:
 
             # 選擇活動
             if listing_type in ['Sell', 'Exchange']:
-                # 對於Sell和Exchange，使用用戶實際有的票券所屬的活動
-                if available_tickets:
-                    # 隨機選擇用戶的一張票券，然後找到對應的活動
-                    selected_ticket = self.fake.random_element(available_tickets)
+                # 從用戶的Active票券中隨機選擇一張（且尚未被使用），確定活動
+                user_active_tickets = [t for t in self.tickets
+                                     if t['owner_id'] == user_id 
+                                     and t['status'] == 'Active'
+                                     and t['ticket_id'] not in used_ticket_ids]
+                if user_active_tickets:
+                    selected_ticket = self.fake.random_element(user_active_tickets)
                     event_id = next(et['event_id'] for et in self.eventtimes if et['eventtime_id'] == selected_ticket['eventtime_id'])
                     event = next(e for e in self.events if e['event_id'] == event_id)
                     selected_eventtime = next(et for et in self.eventtimes if et['eventtime_id'] == selected_ticket['eventtime_id'])
                 else:
-                    # 備用方案：隨機選擇活動
+                    # 用戶沒有可用的Active票券，改為Buy貼文
+                    listing_type = 'Buy'
                     event = self.fake.random_element(self.events)
                     selected_eventtime = self.fake.random_element([et for et in self.eventtimes if et['event_id'] == event['event_id']])
             else:
@@ -486,65 +493,28 @@ class TicketMatchDataGenerator:
             }
 
             # 處理票券關聯
-            if listing_type in ['Sell', 'Exchange'] and available_tickets:
-                # 找到這個活動的相關Active票券
-                event_tickets = [t for t in available_tickets
-                               if t['status'] == 'Active' and
-                               any(et['eventtime_id'] == t['eventtime_id']
-                                     for et in self.eventtimes if et['event_id'] == event['event_id'])]
-
-                if event_tickets:
-                    # 隨機選擇1-3張Active票券
-                    selected_count = min(self.fake.random_int(1, 3), len(event_tickets))
-                    selected_tickets = self.fake.random_sample(event_tickets, selected_count)
-                    listing['offered_ticket_ids'] = [t['ticket_id'] for t in selected_tickets]
-                else:
-                    # 如果沒有這個活動的Active票券，改為Buy貼文
-                    listing['type'] = 'Buy'
-                    listing['offered_ticket_ids'] = None
-            else:
-                listing['offered_ticket_ids'] = None
-
-            listings.append(listing)
-            self.next_ids['listing_id'] += 1
-
-            # 隨機選擇活動
-            event = self.fake.random_element(self.events)
-
-            # 根據活動找到相關場次
-            related_eventtimes = [et for et in self.eventtimes
-                                if et['event_id'] == event['event_id']]
-            if not related_eventtimes:
-                continue
-
-            selected_eventtime = self.fake.random_element(related_eventtimes)
-
-            listing = {
-                'listing_id': self.next_ids['listing_id'],
-                'user_id': user['user_id'],
-                'event_id': event['event_id'],
-                'event_date': selected_eventtime['start_time'],
-                'content': self._generate_listing_content(listing_type, event),
-                'status': 'Active',
-                'type': listing_type,
-                'created_at': self.fake.date_time_this_month()
-            }
-
-            # 賣票和交換貼文需要指定提供的票券
             if listing_type in ['Sell', 'Exchange']:
-                # 該用戶擁有的票券（只限這個活動）
-                user_tickets = ticket_index.get(user['user_id'], [])
-                event_tickets = [t for t in user_tickets
+                # 從用戶的所有Active票券中，找到這個活動的票券，且尚未被其他listing使用
+                user_active_tickets = [t for t in self.tickets
+                                     if t['owner_id'] == user_id 
+                                     and t['status'] == 'Active'
+                                     and t['ticket_id'] not in used_ticket_ids]
+
+                event_tickets = [t for t in user_active_tickets
                                if any(et['eventtime_id'] == t['eventtime_id']
-                                     for et in related_eventtimes)]
+                                     for et in self.eventtimes if et['event_id'] == event['event_id'])]
 
                 if event_tickets:
                     # 隨機選擇1-3張票券
                     selected_count = min(self.fake.random_int(1, 3), len(event_tickets))
-                    selected_tickets = self.fake.random_sample(event_tickets, selected_count)
+                    import random
+                    selected_tickets = random.sample(event_tickets, selected_count)
                     listing['offered_ticket_ids'] = [t['ticket_id'] for t in selected_tickets]
+                    # Mark these tickets as used
+                    for t in selected_tickets:
+                        used_ticket_ids.add(t['ticket_id'])
                 else:
-                    # 理論上不會發生，因為我們檢查了has_tickets
+                    # 如果沒有這個活動的可用票券，改為Buy貼文
                     listing['type'] = 'Buy'
                     listing['offered_ticket_ids'] = None
             else:
@@ -554,7 +524,73 @@ class TicketMatchDataGenerator:
             self.next_ids['listing_id'] += 1
 
         self.listings = listings
+
+        # 後處理：修復listings中的所有權問題
+        print("   🔧 修復listing所有權問題...")
+        self._fix_listing_ownership()
+
         return listings
+
+    def _fix_listing_ownership(self):
+        """修復listing中的票券所有權問題"""
+        # 建立票券所有權索引
+        ticket_owners = {t['ticket_id']: t['owner_id'] for t in self.tickets}
+
+        # 建立用戶票券索引
+        user_tickets = {}
+        for ticket in self.tickets:
+            if ticket['status'] == 'Active':
+                user_id = ticket['owner_id']
+                if user_id not in user_tickets:
+                    user_tickets[user_id] = []
+                user_tickets[user_id].append(ticket)
+
+        # 建立事件票券索引（按用戶）
+        user_event_tickets = {}
+        for user_id, tickets in user_tickets.items():
+            user_event_tickets[user_id] = {}
+            for ticket in tickets:
+                event_id = next((et['event_id'] for et in self.eventtimes
+                               if et['eventtime_id'] == ticket['eventtime_id']), None)
+                if event_id:
+                    if event_id not in user_event_tickets[user_id]:
+                        user_event_tickets[user_id][event_id] = []
+                    user_event_tickets[user_id][event_id].append(ticket)
+
+        fixed_count = 0
+        checked_count = 0
+
+        for listing in self.listings:
+            if listing['type'] in ['Sell', 'Exchange'] and listing.get('offered_ticket_ids'):
+                checked_count += 1
+                user_id = listing['user_id']
+                event_id = listing['event_id']
+
+                # 檢查當前票券是否都屬於該用戶
+                current_ticket_ids = listing['offered_ticket_ids']
+                wrong_tickets = [tid for tid in current_ticket_ids if ticket_owners.get(tid) != user_id]
+
+                if wrong_tickets:
+                    # 獲取該用戶在這個事件的可用票券
+                    available_tickets = user_event_tickets.get(user_id, {}).get(event_id, [])
+
+                    if available_tickets:
+                        # 隨機選擇適當數量的票券替換
+                        import random
+                        num_needed = len(listing['offered_ticket_ids'])
+                        if num_needed > len(available_tickets):
+                            num_needed = len(available_tickets)
+
+                        correct_tickets = random.sample(available_tickets, num_needed)
+                        listing['offered_ticket_ids'] = [t['ticket_id'] for t in correct_tickets]
+                        fixed_count += 1
+                    else:
+                        # 如果沒有可用票券，改為Buy listing
+                        listing['type'] = 'Buy'
+                        listing['offered_ticket_ids'] = None
+                        fixed_count += 1
+
+        print(f"   🔧 檢查了 {checked_count} 個Sell/Exchange listings，修復了 {fixed_count} 個所有權問題")
 
     def _generate_listing_content(self, listing_type, event, area=None, price=None):
         """生成貼文內容"""
@@ -589,12 +625,18 @@ class TicketMatchDataGenerator:
         balance_logs = []
 
         # 建立索引以便快速查找
-        listing_index = {l['listing_id']: l for l in self.listings
-                        if l['type'] in ['Sell', 'Exchange']}
+        all_sell_exchange_listings = [l for l in self.listings if l['type'] in ['Sell', 'Exchange']]
+        listing_index = {l['listing_id']: l for l in all_sell_exchange_listings}
         ticket_index = {t['ticket_id']: t for t in self.tickets}
         used_tickets = set()  # Track tickets that have been traded
 
-        for i in range(trade_count):
+        # 限制交易數量：只交易50-70%的Sell/Exchange listings，保留一些Active
+        max_trades = int(len(all_sell_exchange_listings) * 0.65)  # 65% of Sell/Exchange listings get traded
+        actual_trade_count = min(trade_count, max_trades)
+        
+        print(f"   📊 Sell/Exchange listings: {len(all_sell_exchange_listings)}, 將交易最多 {actual_trade_count} 個 (65%)")
+
+        for i in range(actual_trade_count):
             # 隨機選擇可交易的貼文（其票券尚未被交易過）
             if not listing_index:
                 break
@@ -639,6 +681,9 @@ class TicketMatchDataGenerator:
                 'created_at': self.fake.date_time_this_month(),
                 'updated_at': self.fake.date_time_this_month()
             }
+
+            # Mark the listing as completed since trade was successful
+            listing['status'] = 'Completed'
             trades.append(trade)
 
             # 生成參與者
@@ -766,6 +811,7 @@ class TicketMatchDataGenerator:
             self._write_eventtimes_sql(f)
             self._write_tickets_sql(f)
             self._write_listings_sql(f)
+            self._write_listing_tickets_sql(f)
             self._write_trades_sql(f)
             self._write_trade_participants_sql(f)
             self._write_trade_tickets_sql(f)
@@ -868,16 +914,20 @@ class TicketMatchDataGenerator:
         '{listing['event_date'].isoformat()}', '{listing['content']}',
         '{listing['status']}', '{listing['type']}',
         {offered_str}, '{listing['created_at'].isoformat()}'){comma}\n""")
-        f.write("\n")
-        
-        # Write LISTING_TICKET junction table entries
+            f.write("\n")
+
+    def _write_listing_tickets_sql(self, f):
+        """寫入LISTING_TICKET junction table"""
+        if not self.listings:
+            return
+
         f.write("-- Listing Tickets (Junction Table)\n")
         listing_ticket_entries = []
         for listing in self.listings:
-            if listing['offered_ticket_ids']:
+            if listing.get('offered_ticket_ids'):
                 for ticket_id in listing['offered_ticket_ids']:
                     listing_ticket_entries.append((listing['listing_id'], ticket_id))
-        
+
         if listing_ticket_entries:
             f.write("INSERT INTO listing_ticket (listing_id, ticket_id) VALUES\n")
             for i, (listing_id, ticket_id) in enumerate(listing_ticket_entries):

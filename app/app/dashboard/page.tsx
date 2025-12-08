@@ -49,7 +49,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleConfirmTrade = async (tradeId: number) => {
+  const handleConfirmTrade = async (tradeId: number, tradeAmount: number) => {
+    // Check if user has sufficient balance before attempting confirmation
+    if (user && user.balance < tradeAmount) {
+      alert(`餘額不足！您的餘額為 $${user.balance.toFixed(2)}，但此交易需要 $${tradeAmount.toFixed(2)}`);
+      return;
+    }
+
     if (!confirm('確定要確認此交易嗎？')) return;
 
     try {
@@ -423,14 +429,19 @@ export default function DashboardPage() {
                             
                             {trade.status === 'Pending' && (
                               <>
-                                {!trade.my_confirmed && (
-                                  <button
-                                    onClick={() => handleConfirmTrade(trade.trade_id)}
-                                    className="w-full bg-blue-900 text-white py-2 rounded-lg hover:bg-blue-800 transition font-semibold"
-                                  >
-                                    確認交易
-                                  </button>
-                                )}
+                              {!trade.my_confirmed && (
+                                <button
+                                  onClick={() => handleConfirmTrade(trade.trade_id, trade.agreed_price)}
+                                  disabled={user && user.balance < trade.agreed_price}
+                                  className={`w-full py-2 rounded-lg transition font-semibold ${
+                                    user && user.balance < trade.agreed_price
+                                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                      : 'bg-blue-900 text-white hover:bg-blue-800'
+                                  }`}
+                                >
+                                  {user && user.balance < trade.agreed_price ? '餘額不足' : '確認交易'}
+                                </button>
+                              )}
 
                                 {trade.my_confirmed && (
                                   <p className="text-center text-sm text-gray-600 py-2">

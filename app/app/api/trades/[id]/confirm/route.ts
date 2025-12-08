@@ -161,74 +161,95 @@ export async function POST(
             const participants = participantsResult.rows;
             const listingOwner = participants.find((p: any) => p.user_id === trade.seller_id);
             const tradeInitiator = participants.find((p: any) => p.user_id !== trade.seller_id);
-            
+
             if (!listingOwner || !tradeInitiator) {
               throw new Error('Invalid trade participants');
             }
 
-            const priceAmount = parseFloat(trade.agreed_price);
-            
-            // Update balances based on price direction
+            const priceAmount = Math.abs(parseFloat(trade.agreed_price));
+
+            // Determine payer and receiver based on price direction
+            const payerId = trade.agreed_price > 0 ? tradeInitiator.user_id : listingOwner.user_id;
+            const receiverId = trade.agreed_price > 0 ? listingOwner.user_id : tradeInitiator.user_id;
+
+            // Lock and check payer balance BEFORE any updates
+            const payerBalanceResult = await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
+              [payerId]
+            );
+
+            const currentPayerBalance = parseFloat(payerBalanceResult.rows[0].balance);
+            if (currentPayerBalance < priceAmount) {
+              throw new Error('Insufficient balance to complete trade');
+            }
+
+            // Lock receiver balance as well to prevent concurrent modifications
+            await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
+              [receiverId]
+            );
+
+            // Now perform the balance transfers (safe because we checked balances first)
+            const transferAmount = trade.agreed_price > 0 ? priceAmount : -priceAmount;
+
             await client.query(
               `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
-              [priceAmount, listingOwner.user_id]
+              [transferAmount, listingOwner.user_id]
             );
 
             await client.query(
               `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-              [priceAmount, tradeInitiator.user_id]
+              [transferAmount, tradeInitiator.user_id]
             );
-
-            // Check if payer has sufficient balance
-            const payerId = priceAmount > 0 ? tradeInitiator.user_id : listingOwner.user_id;
-            const payerBalanceResult = await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1`,
-              [payerId]
-            );
-
-            if (parseFloat(payerBalanceResult.rows[0].balance) < 0) {
-              throw new Error('Insufficient balance to complete trade');
-            }
 
             // Log balance changes
             await client.query(
               `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
                VALUES ($1, $2, $3, 'TRADE_PRICE_DIFFERENCE'), ($4, $2, $5, 'TRADE_PRICE_DIFFERENCE')`,
-              [listingOwner.user_id, tradeId, priceAmount, tradeInitiator.user_id, -priceAmount]
+              [listingOwner.user_id, tradeId, transferAmount, tradeInitiator.user_id, -transferAmount]
             );
-            
+
           } else {
             // Regular buy/sell transaction
             if (!buyerId || !sellerId) {
               throw new Error('Invalid trade participants');
             }
 
-            // Update balances
+            const tradeAmount = parseFloat(trade.agreed_price);
+
+            // Lock and check buyer balance BEFORE any updates
+            const buyerBalanceResult = await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
+              [buyerId]
+            );
+
+            const currentBuyerBalance = parseFloat(buyerBalanceResult.rows[0].balance);
+            if (currentBuyerBalance < tradeAmount) {
+              throw new Error('Insufficient balance to complete trade');
+            }
+
+            // Lock seller balance as well to prevent concurrent modifications
+            await client.query(
+              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
+              [sellerId]
+            );
+
+            // Now perform the balance transfers (safe because we checked balance first)
             await client.query(
               `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
-              [trade.agreed_price, sellerId]
+              [tradeAmount, sellerId]
             );
 
             await client.query(
               `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-              [trade.agreed_price, buyerId]
+              [tradeAmount, buyerId]
             );
-
-            // Check buyer has sufficient balance
-            const buyerBalanceResult = await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1`,
-              [buyerId]
-            );
-
-            if (parseFloat(buyerBalanceResult.rows[0].balance) < 0) {
-              throw new Error('Insufficient balance to complete trade');
-            }
 
             // Log balance changes
             await client.query(
               `INSERT INTO user_balance_log (user_id, trade_id, change, reason)
                VALUES ($1, $2, $3, 'TRADE_PAYMENT'), ($4, $2, $5, 'TRADE_PAYMENT')`,
-              [sellerId, tradeId, trade.agreed_price, buyerId, -trade.agreed_price]
+              [sellerId, tradeId, tradeAmount, buyerId, -tradeAmount]
             );
           }
         }

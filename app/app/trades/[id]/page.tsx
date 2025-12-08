@@ -94,6 +94,12 @@ export default function TradeDetailPage() {
   };
 
   const handleConfirmTrade = async () => {
+    // Check if user has sufficient balance before attempting confirmation
+    if (user && trade && user.balance < Math.abs(trade.agreed_price)) {
+      alert(`餘額不足！您的餘額為 $${user.balance.toFixed(2)}，但此交易需要 $${Math.abs(trade.agreed_price).toFixed(2)}`);
+      return;
+    }
+
     if (!confirm('確定要確認此交易嗎？確認後您的票券將被鎖定。')) return;
 
     try {
@@ -480,9 +486,14 @@ export default function TradeDetailPage() {
                   </p>
                   <button
                     onClick={handleConfirmTrade}
-                    className="w-full bg-blue-900 text-white py-3 rounded-lg hover:bg-blue-800 transition font-semibold text-lg"
+                    disabled={user && trade && user.balance < Math.abs(trade.agreed_price)}
+                    className={`w-full py-3 rounded-lg transition font-semibold text-lg ${
+                      user && trade && user.balance < Math.abs(trade.agreed_price)
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-blue-900 text-white hover:bg-blue-800'
+                    }`}
                   >
-                    ✓ 確認交易
+                    {user && trade && user.balance < Math.abs(trade.agreed_price) ? '餘額不足' : '✓ 確認交易'}
                   </button>
                   <button
                     onClick={handleCancelTrade}
