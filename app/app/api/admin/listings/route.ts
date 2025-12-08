@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
         l.*,
         u.username,
         u.email,
+        u.user_description,
         e.event_name,
         e.venue,
         (SELECT COUNT(*) FROM trade WHERE listing_id = l.listing_id) as trade_count

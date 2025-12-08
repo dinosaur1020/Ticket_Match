@@ -44,14 +44,14 @@ class TicketMatchDataGenerator:
 
         # 先建立測試帳號
         test_users = [
-            {'username': 'alice', 'email': 'alice@example.com', 'balance': 25000, 'role': 'User'},
-            {'username': 'bob', 'email': 'bob@example.com', 'balance': 30000, 'role': 'User'},
-            {'username': 'charlie', 'email': 'charlie@example.com', 'balance': 20000, 'role': 'User'},
-            {'username': 'david', 'email': 'david@example.com', 'balance': 45000, 'role': 'User'},
-            {'username': 'emma', 'email': 'emma@example.com', 'balance': 35000, 'role': 'User'},
-            {'username': 'frank', 'email': 'frank@example.com', 'balance': 28000, 'role': 'User'},
-            {'username': 'operator', 'email': 'operator@example.com', 'balance': 100000, 'role': 'Operator'},
-            {'username': 'admin', 'email': 'admin@example.com', 'balance': 100000, 'role': 'Operator'}
+            {'username': 'alice', 'email': 'alice@example.com', 'balance': 25000, 'role': 'User', 'description': '音樂愛好者，喜歡收集各類演唱會門票！🎵'},
+            {'username': 'bob', 'email': 'bob@example.com', 'balance': 30000, 'role': 'User', 'description': '熱愛台灣樂壇，專門收集台灣藝人演唱會票券。🇹🇼'},
+            {'username': 'charlie', 'email': 'charlie@example.com', 'balance': 20000, 'role': 'User', 'description': '票券收藏家，對各類音樂活動都有興趣。'},
+            {'username': 'david', 'email': 'david@example.com', 'balance': 45000, 'role': 'User', 'description': '專業票務經紀，協助大家找到心儀的演唱會票券！'},
+            {'username': 'emma', 'email': 'emma@example.com', 'balance': 35000, 'role': 'User', 'description': '音樂迷，熱愛追蹤最新音樂活動和藝人動態。'},
+            {'username': 'frank', 'email': 'frank@example.com', 'balance': 28000, 'role': 'User', 'description': '票券交易愛好者，喜歡和大家分享音樂體驗。'},
+            {'username': 'operator', 'email': 'operator@example.com', 'balance': 100000, 'role': 'Operator', 'description': '平台管理員，負責維護系統正常運行。'},
+            {'username': 'admin', 'email': 'admin@example.com', 'balance': 100000, 'role': 'Operator', 'description': '系統管理員，確保平台安全和用戶體驗。'}
         ]
 
         # 建立測試帳號
@@ -63,6 +63,7 @@ class TicketMatchDataGenerator:
                 'email': test_user['email'],
                 'status': 'Active',
                 'balance': test_user['balance'],
+                'user_description': test_user.get('description'),
                 'created_at': self.fake.date_time_this_year()
             }
             users.append(user)
@@ -87,6 +88,7 @@ class TicketMatchDataGenerator:
                 'email': email,
                 'status': random.choices(['Active', 'Suspended', 'Warning'], weights=[95, 4, 1])[0],
                 'balance': self.fake.random_int(1000, 50000),
+                'user_description': self._generate_user_description() if random.random() < 0.7 else None,  # 70% 有描述
                 'created_at': self.fake.date_time_this_year()
             }
             users.append(user)
@@ -128,6 +130,42 @@ class TicketMatchDataGenerator:
 
         return user_roles
 
+    def _generate_user_description(self):
+        """生成用戶描述"""
+        templates = [
+            "音樂愛好者，喜歡收集各類演唱會門票！🎵",
+            "熱愛台灣樂壇，專門收集台灣藝人演唱會票券。🇹🇼",
+            "票券收藏家，對各類音樂活動都有興趣。",
+            "專業票務經紀，協助大家找到心儀的演唱會票券！",
+            "音樂迷，熱愛追蹤最新音樂活動和藝人動態。",
+            "票券交易愛好者，喜歡和大家分享音樂體驗。",
+            "演唱會狂熱粉絲，總是第一個知道最新消息！",
+            "音樂活動資深參與者，經驗豐富，誠實交易。",
+            "喜歡用票券交換認識更多音樂朋友。",
+            "票券投資者，專注於高品質音樂活動。",
+            "音樂會常客，希望能分享多餘票券給有需要的人。",
+            "從學生時代開始收集演唱會票根，現在是專業收藏家。",
+            "熱愛現場音樂，願意幫助大家實現音樂夢想。",
+            "票券交易平台的老用戶，交易記錄良好。",
+            "音樂活動組織者，也熱衷於票券分享。",
+            "喜歡用票券交換不同藝人的音樂會體驗。",
+            "台灣流行音樂的支持者，總是關注本土藝人。",
+            "音樂會票券的忠實收藏者。",
+            "希望通過票券交易認識更多音樂同好。",
+            "演唱會票券投資者，專注於增值潛力大的活動。",
+            "音樂愛好者，希望用票券分享快樂給更多人。",
+            "票券交易新手，但充滿熱情和誠意。",
+            "音樂會常客，喜歡分享演唱會心得。",
+            "票券收藏愛好者，專注於經典音樂會。",
+            "希望通過票券交易擴展音樂視野。",
+            "演唱會票券的長期投資者。",
+            "音樂活動參與者，樂於分享體驗。",
+            "票券交易平台的使用者，希望幫助大家。",
+            "熱愛音樂，專注於票券收藏和分享。",
+            "演唱會愛好者，願意與大家交換票券。"
+        ]
+        return self.fake.random_element(templates)
+
     def generate_events_and_times(self, event_count=300, sessions_per_event=4):
         """生成活動和場次"""
         print(f"   🎪 生成 {event_count} 個活動和 {event_count * sessions_per_event} 個場次...")
@@ -161,19 +199,46 @@ class TicketMatchDataGenerator:
                     start_date='+30d', end_date='+180d'
                 )
 
-                # 確保不同場次時間不衝突
-                while any(et['event_id'] == event['event_id'] and
-                         abs((et['start_time'] - start_time).days) < 1
-                         for et in eventtimes):
-                    start_time = self.fake.date_time_between(
-                        start_date='+30d', end_date='+180d'
+                # 使用更合理的活動時間 (而不是隨機時間)
+                reasonable_times = [
+                    (17, 30), (18, 0), (18, 30), (19, 0), (19, 30), (20, 0), (20, 30), (21, 0)
+                ]
+
+                # 確保不同場次時間不衝突 (同一個活動不能有重複的開始時間)
+                existing_times_for_event = [
+                    et['start_time'] for et in eventtimes if et['event_id'] == event['event_id']
+                ]
+
+                # 隨機選擇一個合理的時間，但確保不與現有場次重複
+                available_times = []
+                for hour, minute in reasonable_times:
+                    test_time = start_time.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                    # 檢查是否與現有場次時間重複 (相差至少1小時)
+                    conflict = any(
+                        abs((existing_time - test_time).total_seconds()) < 3600  # 1小時內算衝突
+                        for existing_time in existing_times_for_event
                     )
+                    if not conflict:
+                        available_times.append((hour, minute))
+
+                if available_times:
+                    hour, minute = self.fake.random_element(available_times)
+                else:
+                    # 如果沒有可用時間，隨機選一個 (這不應該發生，除非場次太多)
+                    hour, minute = self.fake.random_element(reasonable_times)
+
+                # 設定合理的開始時間
+                start_time = start_time.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+                # 設定合理的結束時間 (2-4小時後)
+                duration_hours = self.fake.random_element([2, 2.5, 3, 3.5, 4])
+                end_time = start_time + timedelta(hours=duration_hours)
 
                 eventtime = {
                     'eventtime_id': self.next_ids['eventtime_id'],
                     'event_id': event['event_id'],
                     'start_time': start_time,
-                    'end_time': start_time + timedelta(hours=self.fake.random_element([2.5, 3, 3.5, 4])),
+                    'end_time': end_time,
                     'venue': venue['name']
                 }
                 eventtimes.append(eventtime)
@@ -256,8 +321,21 @@ class TicketMatchDataGenerator:
             ticket_id = self.next_ids['ticket_id']
             # Select random price from available ranges
             price = self.fake.random_int(min=1200, max=12000)
-            # 提高Active票券的比例，因為大多數票券應該是可以使用的
-            status = self.fake.random_element(['Active'] * 80 + ['Locked'] * 15 + ['Expired'] * 3 + ['Canceled'] * 2)
+
+            # Logical ticket status assignment based on event timing
+            event_date = eventtime['start_time']
+            now = datetime.now()
+
+            if event_date < now - timedelta(days=1):
+                # Event is in the past - ticket should be Expired
+                status = 'Expired'
+            elif event_date < now + timedelta(days=30):
+                # Event is upcoming within 30 days - mostly Active, some Locked
+                status = self.fake.random_element(['Active'] * 85 + ['Locked'] * 15)
+            else:
+                # Event is far in the future - mostly Active, some Canceled
+                status = self.fake.random_element(['Active'] * 90 + ['Canceled'] * 10)
+
             created_at = self.fake.date_time_between(start_date='-1y', end_date='now')
 
             tickets.append({
@@ -701,13 +779,15 @@ class TicketMatchDataGenerator:
             return
 
         f.write("-- Users\n")
-        f.write('INSERT INTO "USER" (user_id, username, password_hash, email, status, balance, created_at) VALUES\n')
+        f.write('INSERT INTO "USER" (user_id, username, password_hash, email, status, balance, user_description, created_at) VALUES\n')
 
         for i, user in enumerate(self.users):
             comma = ',' if i < len(self.users) - 1 else ';'
+            description = user['user_description']
+            description_value = f"'{description}'" if description else 'NULL'
             f.write(f"""('{user['user_id']}', '{user['username']}', '{user['password_hash']}',
         '{user['email']}', '{user['status']}', {user['balance']},
-        '{user['created_at'].isoformat()}'){comma}\n""")
+        {description_value}, '{user['created_at'].isoformat()}'){comma}\n""")
         f.write("\n")
 
     def _write_user_roles_sql(self, f):

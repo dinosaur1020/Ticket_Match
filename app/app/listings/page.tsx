@@ -172,7 +172,7 @@ export default function ListingsPage() {
             <>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {listings.map((listing) => (
-                  <Link
+                  <a
                     key={listing.listing_id}
                     href={`/listings/${listing.listing_id}`}
                     className="bg-white rounded-xl shadow-lg hover:shadow-xl transition p-6 block"
@@ -235,11 +235,22 @@ export default function ListingsPage() {
 
                     <div className="pt-3 border-t border-gray-200">
                       <div className="flex justify-between items-center text-xs text-gray-500">
-                        <span>by {listing.username}</span>
+                        <span>
+                          by <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.open(`/users/${listing.user_id}`, '_blank');
+                            }}
+                            className="text-blue-600 hover:text-blue-800 font-medium hover:underline bg-transparent border-none p-0 cursor-pointer"
+                          >
+                            {listing.username}
+                          </button>
+                        </span>
                         <span>{new Date(listing.created_at).toLocaleDateString('zh-TW')}</span>
                       </div>
                     </div>
-                  </Link>
+                  </a>
                 ))}
               </div>
 

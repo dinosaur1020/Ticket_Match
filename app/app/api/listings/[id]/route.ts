@@ -33,6 +33,7 @@ export async function GET(
         l.*,
         u.username,
         u.user_id as seller_id,
+        u.user_description,
         e.event_name,
         e.venue,
         e.description as event_description
@@ -148,7 +149,7 @@ export async function PATCH(
     if (status) {
       // Operators can use all statuses, regular users can only use Active or Canceled
       const allowedStatuses = isOperator 
-        ? ['Active', 'Canceled', 'Expired', 'Completed']
+        ? ['Active', 'Canceled', 'Expired', 'Completed', 'Deleted']
         : ['Active', 'Canceled'];
       
       if (!allowedStatuses.includes(status)) {

@@ -152,13 +152,16 @@ export default function AdminPage() {
   };
 
   const handleDeleteListing = async (listingId: number) => {
-    if (!confirm('確定要刪除此貼文嗎？此操作無法復原！')) {
+    if (!confirm('確定要刪除此貼文嗎？貼文將被標記為「已刪除」狀態。')) {
       return;
     }
 
     try {
+      // Use PATCH to mark as Deleted instead of actual deletion
       const response = await fetch(`/api/listings/${listingId}`, {
-        method: 'DELETE',
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Deleted' }),
       });
 
       const data = await response.json();
@@ -168,7 +171,7 @@ export default function AdminPage() {
         return;
       }
 
-      alert('貼文刪除成功！');
+      alert('貼文已標記為刪除！');
       fetchListings(); // Refresh the list
     } catch (error) {
       console.error('Failed to delete listing:', error);
@@ -551,6 +554,7 @@ export default function AdminPage() {
                         { value: 'Completed', label: '已完成', color: 'bg-blue-100 text-blue-700' },
                         { value: 'Canceled', label: '已取消', color: 'bg-red-100 text-red-700' },
                         { value: 'Expired', label: '已過期', color: 'bg-gray-100 text-gray-700' },
+                        { value: 'Deleted', label: '已刪除', color: 'bg-black text-white' },
                       ].map((filter) => (
                         <button
                           key={filter.value}
@@ -719,10 +723,15 @@ export default function AdminPage() {
                                   ? 'bg-blue-100 text-blue-800'
                                   : listing.status === 'Canceled'
                                   ? 'bg-red-100 text-red-700'
+                                  : listing.status === 'Deleted'
+                                  ? 'bg-black text-white'
                                   : 'bg-gray-100 text-gray-700'
                               }`}
                             >
-                              {listing.status === 'Active' ? '進行中' : listing.status === 'Completed' ? '已完成' : listing.status === 'Canceled' ? '已取消' : '已過期'}
+                              {listing.status === 'Active' ? '進行中' : 
+                               listing.status === 'Completed' ? '已完成' : 
+                               listing.status === 'Canceled' ? '已取消' : 
+                               listing.status === 'Deleted' ? '已刪除' : '已過期'}
                             </span>
                           </div>
                           <h3 className="font-bold text-gray-900 mb-1">
@@ -732,7 +741,14 @@ export default function AdminPage() {
                             📍 {listing.venue}
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
-                            👤 {listing.username} ({listing.email})
+                            👤 <a 
+                              href={`/users/${listing.user_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                            >
+                              {listing.username}
+                            </a> ({listing.email})
                           </p>
                           {listing.content && (
                             <p className="text-gray-700 mt-2 bg-gray-50 p-2 rounded">
@@ -782,12 +798,21 @@ export default function AdminPage() {
                             </button>
                           )}
                           
-                          {listing.status !== 'Completed' && parseInt(listing.trade_count) === 0 && (
+                          {listing.status !== 'Completed' && listing.status !== 'Deleted' && (
                             <button
                               onClick={() => handleDeleteListing(listing.listing_id)}
                               className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition"
                             >
-                              刪除貼文
+                              標記為刪除
+                            </button>
+                          )}
+                          
+                          {listing.status === 'Deleted' && (
+                            <button
+                              onClick={() => handleUpdateListingStatus(listing.listing_id, 'Active')}
+                              className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 transition"
+                            >
+                              恢復貼文
                             </button>
                           )}
                         </div>

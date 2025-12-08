@@ -236,7 +236,6 @@ export default function AddTicketPage() {
                     {eventTimes.map((et) => (
                       <option key={et.eventtime_id} value={et.eventtime_id}>
                         {formatDateTime(et.start_time)}
-                        {et.end_time && ` - ${formatDateTime(et.end_time)}`}
                       </option>
                     ))}
                   </select>

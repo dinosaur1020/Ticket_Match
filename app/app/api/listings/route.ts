@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         l.*,
         u.username,
+        u.user_description,
         e.event_name,
         e.venue
       FROM listing l

@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
         u.email,
         u.status,
         u.balance,
+        u.user_description,
         u.created_at,
         COALESCE(array_agg(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') as roles,
         COUNT(DISTINCT t.ticket_id) as ticket_count,

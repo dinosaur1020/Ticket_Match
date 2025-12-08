@@ -338,7 +338,12 @@ export default function ListingDetailPage() {
               </p>
               <p className="flex items-center gap-2">
                 <span className="font-semibold">發文者：</span>
-                <span>{listing.username}</span>
+                <a 
+                  href={`/users/${listing.user_id}`}
+                  className="text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                >
+                  {listing.username}
+                </a>
               </p>
             </div>
 

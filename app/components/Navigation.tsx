@@ -59,6 +59,14 @@ export default function Navigation() {
                 >
                   個人管理
                 </Link>
+                <Link
+                  href="/profile"
+                  className={`hover:text-blue-200 transition ${
+                    pathname === '/profile' ? 'font-bold' : ''
+                  }`}
+                >
+                  我的資料
+                </Link>
                 {isOperator && (
                   <Link
                     href="/admin"

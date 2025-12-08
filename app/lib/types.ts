@@ -6,6 +6,7 @@ export interface User {
   email: string;
   status: 'Active' | 'Suspended' | 'Warning';
   balance: number;
+  user_description?: string;
   created_at: Date;
 }
 
@@ -50,7 +51,7 @@ export interface Listing {
   event_id: number;
   event_date: Date;
   content?: string;
-  status: 'Active' | 'Canceled' | 'Completed' | 'Expired';
+  status: 'Active' | 'Canceled' | 'Completed' | 'Expired' | 'Deleted';
   type: 'Sell' | 'Buy' | 'Exchange';
   created_at: Date;
 }
