@@ -486,9 +486,9 @@ export default function TradeDetailPage() {
                   </p>
                   <button
                     onClick={handleConfirmTrade}
-                    disabled={user && trade && user.balance < Math.abs(trade.agreed_price)}
+                    disabled={Boolean(user && trade && (user.balance ?? 0) < Math.abs(trade.agreed_price))}
                     className={`w-full py-3 rounded-lg transition font-semibold text-lg ${
-                      user && trade && user.balance < Math.abs(trade.agreed_price)
+                      user && trade && (user.balance ?? 0) < Math.abs(trade.agreed_price)
                         ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                         : 'bg-blue-900 text-white hover:bg-blue-800'
                     }`}

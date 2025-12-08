@@ -49,10 +49,58 @@ export default function DashboardPage() {
     }
   };
 
-  const handleConfirmTrade = async (tradeId: number, tradeAmount: number) => {
-    // Check if user has sufficient balance before attempting confirmation
-    if (user && user.balance < tradeAmount) {
-      alert(`餘額不足！您的餘額為 $${user.balance.toFixed(2)}，但此交易需要 $${tradeAmount.toFixed(2)}`);
+  const handleConfirmTrade = async (tradeId: number, tradeAmount: number, trade: any) => {
+    if (!user) return;
+
+    // Calculate pending balance requirements from already confirmed trades
+    let pendingDebits = 0;
+    trades.forEach((t: any) => {
+      if (t.trade_id === tradeId) return; // Skip current trade
+      if (t.status !== 'Pending' || !t.my_confirmed) return; // Only count pending confirmed trades
+
+      // Calculate debit for this pending trade
+      const agreedPrice = parseFloat(t.agreed_price);
+      const listingType = t.listing_type;
+      const isListingOwner = user.user_id === t.listing_owner_id;
+
+      if (listingType === 'Sell' || listingType === 'Buy') {
+        if (t.my_role === 'buyer') {
+          pendingDebits += agreedPrice;
+        }
+      } else if (listingType === 'Exchange') {
+        if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+          pendingDebits += Math.abs(agreedPrice);
+        }
+      }
+    });
+
+    // Calculate debit for current trade
+    let currentTradeDebit = 0;
+    const agreedPrice = parseFloat(trade.agreed_price);
+    const listingType = trade.listing_type;
+    const isListingOwner = user.user_id === trade.listing_owner_id;
+
+    if (listingType === 'Sell' || listingType === 'Buy') {
+      if (trade.my_role === 'buyer') {
+        currentTradeDebit = agreedPrice;
+      }
+    } else if (listingType === 'Exchange') {
+      if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+        currentTradeDebit = Math.abs(agreedPrice);
+      }
+    }
+
+    const totalRequired = pendingDebits + currentTradeDebit;
+
+    // Check if user has sufficient balance
+    if (user.balance < totalRequired) {
+      alert(
+        `餘額不足！\n` +
+        `目前餘額：$${user.balance.toFixed(2)}\n` +
+        `此交易需要：$${currentTradeDebit.toFixed(2)}\n` +
+        `其他待完成交易：$${pendingDebits.toFixed(2)}\n` +
+        `總共需要：$${totalRequired.toFixed(2)}`
+      );
       return;
     }
 
@@ -130,6 +178,50 @@ export default function DashboardPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const canAffordTrade = (trade: any) => {
+    if (!user) return false;
+
+    // Calculate pending balance requirements from already confirmed trades
+    let pendingDebits = 0;
+    trades.forEach((t: any) => {
+      if (t.trade_id === trade.trade_id) return; // Skip current trade
+      if (t.status !== 'Pending' || !t.my_confirmed) return; // Only count pending confirmed trades
+
+      const agreedPrice = parseFloat(t.agreed_price);
+      const listingType = t.listing_type;
+      const isListingOwner = user.user_id === t.listing_owner_id;
+
+      if (listingType === 'Sell' || listingType === 'Buy') {
+        if (t.my_role === 'buyer') {
+          pendingDebits += agreedPrice;
+        }
+      } else if (listingType === 'Exchange') {
+        if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+          pendingDebits += Math.abs(agreedPrice);
+        }
+      }
+    });
+
+    // Calculate debit for current trade
+    let currentTradeDebit = 0;
+    const agreedPrice = parseFloat(trade.agreed_price);
+    const listingType = trade.listing_type;
+    const isListingOwner = user.user_id === trade.listing_owner_id;
+
+    if (listingType === 'Sell' || listingType === 'Buy') {
+      if (trade.my_role === 'buyer') {
+        currentTradeDebit = agreedPrice;
+      }
+    } else if (listingType === 'Exchange') {
+      if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+        currentTradeDebit = Math.abs(agreedPrice);
+      }
+    }
+
+    const totalRequired = pendingDebits + currentTradeDebit;
+    return user.balance >= totalRequired;
   };
 
   if (authLoading || !user) {
@@ -431,15 +523,15 @@ export default function DashboardPage() {
                               <>
                               {!trade.my_confirmed && (
                                 <button
-                                  onClick={() => handleConfirmTrade(trade.trade_id, trade.agreed_price)}
-                                  disabled={user && user.balance < trade.agreed_price}
+                                  onClick={() => handleConfirmTrade(trade.trade_id, trade.agreed_price, trade)}
+                                  disabled={!canAffordTrade(trade)}
                                   className={`w-full py-2 rounded-lg transition font-semibold ${
-                                    user && user.balance < trade.agreed_price
+                                    !canAffordTrade(trade)
                                       ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                                       : 'bg-blue-900 text-white hover:bg-blue-800'
                                   }`}
                                 >
-                                  {user && user.balance < trade.agreed_price ? '餘額不足' : '確認交易'}
+                                  {!canAffordTrade(trade) ? '餘額不足' : '確認交易'}
                                 </button>
                               )}
 

@@ -11,6 +11,7 @@ export async function GET() {
         t.*,
         l.type as listing_type,
         l.content as listing_content,
+        l.user_id as listing_owner_id,
         e.event_name,
         tp.role as my_role,
         tp.confirmed as my_confirmed,
@@ -29,7 +30,7 @@ export async function GET() {
        JOIN listing l ON t.listing_id = l.listing_id
        JOIN event e ON l.event_id = e.event_id
        WHERE tp.user_id = $1
-       GROUP BY t.trade_id, l.listing_id, e.event_id, tp.role, tp.confirmed
+       GROUP BY t.trade_id, l.listing_id, l.user_id, e.event_id, tp.role, tp.confirmed
        ORDER BY t.created_at DESC`,
       [session.user_id]
     );

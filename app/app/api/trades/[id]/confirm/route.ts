@@ -53,6 +53,82 @@ export async function POST(
         throw new Error('You have already confirmed this trade');
       }
 
+      // Calculate how much this trade will cost the current user
+      let thisTradeDebit = 0;
+      
+      if (trade.listing_type === 'Sell' || trade.listing_type === 'Buy') {
+        // For buy/sell, determine if current user is the buyer
+        const isBuyer = participant.role === 'buyer';
+        if (isBuyer) {
+          thisTradeDebit = parseFloat(trade.agreed_price);
+        }
+      } else if (trade.listing_type === 'Exchange') {
+        // For exchange, check if current user needs to pay
+        const isListingOwner = session.user_id === trade.seller_id;
+        const agreedPrice = parseFloat(trade.agreed_price);
+        
+        if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+          // Current user is the payer
+          thisTradeDebit = Math.abs(agreedPrice);
+        }
+      }
+
+      // Check user's current balance and pending confirmed trades
+      if (thisTradeDebit > 0) {
+        // Get user's current balance
+        const userBalanceResult = await client.query(
+          `SELECT balance FROM "USER" WHERE user_id = $1`,
+          [session.user_id]
+        );
+        const currentBalance = parseFloat(userBalanceResult.rows[0].balance);
+
+        // Calculate total pending debits from other confirmed but incomplete trades
+        const pendingDebitsResult = await client.query(
+          `SELECT 
+            t.trade_id,
+            t.agreed_price,
+            t.status,
+            l.type as listing_type,
+            l.user_id as listing_owner_id,
+            tp.role,
+            tp.confirmed
+           FROM trade t
+           JOIN listing l ON t.listing_id = l.listing_id
+           JOIN trade_participant tp ON t.trade_id = tp.trade_id
+           WHERE tp.user_id = $1 
+             AND t.status = 'Pending'
+             AND tp.confirmed = TRUE
+             AND t.trade_id != $2`,
+          [session.user_id, tradeId]
+        );
+
+        let totalPendingDebits = 0;
+        for (const pendingTrade of pendingDebitsResult.rows) {
+          const agreedPrice = parseFloat(pendingTrade.agreed_price);
+          const listingType = pendingTrade.listing_type;
+          const isListingOwner = session.user_id === pendingTrade.listing_owner_id;
+
+          if (listingType === 'Sell' || listingType === 'Buy') {
+            if (pendingTrade.role === 'buyer') {
+              totalPendingDebits += agreedPrice;
+            }
+          } else if (listingType === 'Exchange') {
+            if ((agreedPrice > 0 && !isListingOwner) || (agreedPrice < 0 && isListingOwner)) {
+              totalPendingDebits += Math.abs(agreedPrice);
+            }
+          }
+        }
+
+        // Check if user has enough balance for all pending trades plus this one
+        const totalRequired = totalPendingDebits + thisTradeDebit;
+        if (currentBalance < totalRequired) {
+          throw new Error(
+            `Insufficient balance. You have $${currentBalance.toFixed(2)} but need $${totalRequired.toFixed(2)} ` +
+            `(including $${totalPendingDebits.toFixed(2)} from other pending confirmed trades)`
+          );
+        }
+      }
+
       // Mark this user as confirmed
       await client.query(
         `UPDATE trade_participant
@@ -168,38 +244,31 @@ export async function POST(
 
             const priceAmount = Math.abs(parseFloat(trade.agreed_price));
 
-            // Determine payer and receiver based on price direction
-            const payerId = trade.agreed_price > 0 ? tradeInitiator.user_id : listingOwner.user_id;
-            const receiverId = trade.agreed_price > 0 ? listingOwner.user_id : tradeInitiator.user_id;
+            // For exchange transactions, we need to handle balance transfers atomically
+            // agreed_price > 0: listing owner receives, trade initiator pays
+            // agreed_price < 0: listing owner pays, trade initiator receives
+            const transferAmount = parseFloat(trade.agreed_price);
+            const payerId = transferAmount > 0 ? tradeInitiator.user_id : listingOwner.user_id;
+            const paymentAmount = Math.abs(transferAmount);
 
-            // Lock and check payer balance BEFORE any updates
-            const payerBalanceResult = await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
-              [payerId]
+            // Atomic check and update payer balance: only deduct if sufficient balance
+            const payerUpdateResult = await client.query(
+              `UPDATE "USER"
+               SET balance = balance - $1
+               WHERE user_id = $2 AND balance >= $1
+               RETURNING balance`,
+              [paymentAmount, payerId]
             );
 
-            const currentPayerBalance = parseFloat(payerBalanceResult.rows[0].balance);
-            if (currentPayerBalance < priceAmount) {
+            if (payerUpdateResult.rowCount === 0) {
               throw new Error('Insufficient balance to complete trade');
             }
 
-            // Lock receiver balance as well to prevent concurrent modifications
-            await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
-              [receiverId]
-            );
-
-            // Now perform the balance transfers (safe because we checked balances first)
-            const transferAmount = trade.agreed_price > 0 ? priceAmount : -priceAmount;
-
+            // Now perform the receiver balance update
+            const receiverId = transferAmount > 0 ? listingOwner.user_id : tradeInitiator.user_id;
             await client.query(
               `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
-              [transferAmount, listingOwner.user_id]
-            );
-
-            await client.query(
-              `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-              [transferAmount, tradeInitiator.user_id]
+              [paymentAmount, receiverId]
             );
 
             // Log balance changes
@@ -217,32 +286,23 @@ export async function POST(
 
             const tradeAmount = parseFloat(trade.agreed_price);
 
-            // Lock and check buyer balance BEFORE any updates
-            const buyerBalanceResult = await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
-              [buyerId]
+            // Atomic check and update buyer balance: only deduct if sufficient balance
+            const buyerUpdateResult = await client.query(
+              `UPDATE "USER"
+               SET balance = balance - $1
+               WHERE user_id = $2 AND balance >= $1
+               RETURNING balance`,
+              [tradeAmount, buyerId]
             );
 
-            const currentBuyerBalance = parseFloat(buyerBalanceResult.rows[0].balance);
-            if (currentBuyerBalance < tradeAmount) {
+            if (buyerUpdateResult.rowCount === 0) {
               throw new Error('Insufficient balance to complete trade');
             }
 
-            // Lock seller balance as well to prevent concurrent modifications
-            await client.query(
-              `SELECT balance FROM "USER" WHERE user_id = $1 FOR UPDATE`,
-              [sellerId]
-            );
-
-            // Now perform the balance transfers (safe because we checked balance first)
+            // Now perform the seller balance update (safe since buyer balance was validated)
             await client.query(
               `UPDATE "USER" SET balance = balance + $1 WHERE user_id = $2`,
               [tradeAmount, sellerId]
-            );
-
-            await client.query(
-              `UPDATE "USER" SET balance = balance - $1 WHERE user_id = $2`,
-              [tradeAmount, buyerId]
             );
 
             // Log balance changes
