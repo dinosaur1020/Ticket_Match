@@ -28,11 +28,14 @@ CREATE TABLE "USER" (
     status         VARCHAR(20) NOT NULL DEFAULT 'Active',
     -- 'Active', 'Suspended', 'Warning', ...
     balance        DECIMAL(10,2) NOT NULL DEFAULT 10000,
+    user_description TEXT,
+    -- Optional user bio/description (max 500 characters)
     created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
     
     CONSTRAINT check_user_status CHECK (status IN ('Active', 'Suspended', 'Warning')),
     CONSTRAINT check_balance_non_negative CHECK (balance >= 0),
-    CONSTRAINT check_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    CONSTRAINT check_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT check_user_description_length CHECK (user_description IS NULL OR length(user_description) <= 500)
 );
 
 -- =========================================================
