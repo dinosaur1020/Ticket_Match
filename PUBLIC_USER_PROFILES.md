@@ -361,3 +361,4 @@ GROUP BY u.user_id, u.username, u.status, u.user_description, u.created_at
 
 Users can now view each other's profiles to build trust and make informed trading decisions.
 
+
