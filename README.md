@@ -90,7 +90,7 @@ cd Ticket_Match-1/app
 npm install
 
 # 複製環境變數範例並修改
-cp ".env copy.example" .env.local
+cp .env.example .env.local
 ```
 
 編輯 `.env.local` 並設定你的資料庫連線資訊：
