@@ -132,10 +132,13 @@ export async function POST(request: NextRequest) {
         [trade.trade_id, listing.user_id, user1Role, session.user_id, user2Role]
       );
 
+      // Track total original ticket prices for validation
+      let sellerTicketsPriceTotal = 0;
+
       // Verify and add listing owner's tickets (user1)
       for (const ticket_id of user1TicketIds) {
         const ticketResult = await client.query(
-          `SELECT owner_id, status FROM ticket WHERE ticket_id = $1`,
+          `SELECT owner_id, status, price FROM ticket WHERE ticket_id = $1`,
           [ticket_id]
         );
 
@@ -153,6 +156,11 @@ export async function POST(request: NextRequest) {
           throw new Error(`Ticket ${ticket_id} is not available (status: ${ticket.status})`);
         }
 
+        // For Sell listings, accumulate the seller's ticket prices
+        if (listing.type === 'Sell') {
+          sellerTicketsPriceTotal += parseFloat(ticket.price);
+        }
+
         // Add ticket to trade (from listing owner to initiator)
         await client.query(
           `INSERT INTO trade_ticket (trade_id, ticket_id, from_user_id, to_user_id)
@@ -164,7 +172,7 @@ export async function POST(request: NextRequest) {
       // Verify and add initiator's tickets (user2)
       for (const ticket_id of user2TicketIds) {
         const ticketResult = await client.query(
-          `SELECT owner_id, status FROM ticket WHERE ticket_id = $1`,
+          `SELECT owner_id, status, price FROM ticket WHERE ticket_id = $1`,
           [ticket_id]
         );
 
@@ -182,12 +190,27 @@ export async function POST(request: NextRequest) {
           throw new Error(`Ticket ${ticket_id} is not available (status: ${ticket.status})`);
         }
 
+        // For Buy listings, the initiator is the seller, accumulate their ticket prices
+        if (listing.type === 'Buy') {
+          sellerTicketsPriceTotal += parseFloat(ticket.price);
+        }
+
         // Add ticket to trade (from initiator to listing owner)
         await client.query(
           `INSERT INTO trade_ticket (trade_id, ticket_id, from_user_id, to_user_id)
            VALUES ($1, $2, $3, $4)`,
           [trade.trade_id, ticket_id, session.user_id, listing.user_id]
         );
+      }
+
+      // Validate that agreed_price does not exceed original ticket prices
+      // This applies to Buy and Sell listings (not Exchange)
+      if ((listing.type === 'Sell' || listing.type === 'Buy') && sellerTicketsPriceTotal > 0) {
+        if (agreed_price > sellerTicketsPriceTotal) {
+          throw new Error(
+            `售價 ($${agreed_price.toFixed(2)}) 不能超過票的原價總和 ($${sellerTicketsPriceTotal.toFixed(2)})`
+          );
+        }
       }
 
       // Ensure at least one ticket is involved

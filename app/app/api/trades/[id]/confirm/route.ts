@@ -173,6 +173,39 @@ export async function POST(
 
       // If all confirmed, complete the trade
       if (parseInt(confirmed_count) === parseInt(total)) {
+        // Validate agreed_price against original ticket prices before completing
+        if (trade.listing_type === 'Sell' || trade.listing_type === 'Buy') {
+          // Get seller's tickets (from_user determines who is giving tickets)
+          const sellerTicketsResult = await client.query(
+            `SELECT t.price, tt.from_user_id
+             FROM trade_ticket tt
+             JOIN ticket t ON tt.ticket_id = t.ticket_id
+             WHERE tt.trade_id = $1`,
+            [tradeId]
+          );
+
+          // Calculate total original price of tickets being sold
+          let sellerTicketsPriceTotal = 0;
+          for (const row of sellerTicketsResult.rows) {
+            // For Sell listings, seller is listing owner (trade.seller_id)
+            // For Buy listings, seller is the other participant
+            const isSeller = (trade.listing_type === 'Sell' && row.from_user_id === trade.seller_id) ||
+                           (trade.listing_type === 'Buy' && row.from_user_id !== trade.seller_id);
+            
+            if (isSeller) {
+              sellerTicketsPriceTotal += parseFloat(row.price);
+            }
+          }
+
+          // Validate agreed_price does not exceed original ticket prices
+          const agreedPriceValue = parseFloat(trade.agreed_price);
+          if (sellerTicketsPriceTotal > 0 && agreedPriceValue > sellerTicketsPriceTotal) {
+            throw new Error(
+              `售價 ($${agreedPriceValue.toFixed(2)}) 不能超過票的原價總和 ($${sellerTicketsPriceTotal.toFixed(2)})`
+            );
+          }
+        }
+
         // Get all tickets involved in this trade
         const ticketsResult = await client.query(
           `SELECT ticket_id, from_user_id, to_user_id FROM trade_ticket
